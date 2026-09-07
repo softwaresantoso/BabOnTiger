@@ -1,0 +1,17 @@
+node_modules
+dist
+.env
+.env.local
+.env.*.local
+.firebase
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+service-account*.json
+*.pem
+.DS_Store
+babon-tiger-mark1.json
+babon-tiger-mark1.json
+babon-tiger-mark1.json
+babon-tiger-mark1.json
+babon-tiger-mark1.json
