@@ -39,7 +39,16 @@ export default function Booking() {
     if (!service || !barber || !time) return;
     setBusy(true); setError("");
     try {
-      const result = await createBooking({ customerId: profile.uid, customerName: profile.name, customerPhone: profile.phone, barber, service, date, startTime: time, notes });
+      const result = await createBooking({
+  customerId: profile.uid,
+  customerName: profile.name,
+  customerPhone: profile.phone ?? "",
+  barber,
+  service,
+  date,
+  startTime: time,
+  notes
+});
       nav(`/booking/success/${result.id}`);
     } catch(e) { setError(e instanceof Error ? e.message : "Booking gagal."); }
     finally { setBusy(false); }
