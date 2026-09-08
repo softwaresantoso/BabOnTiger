@@ -69,22 +69,43 @@ export async function getAvailableSlots(
   const currentMinutes = now.getHours() * 60 + now.getMinutes() + 30;
 
   const result: string[] = [];
-  for (let t = start; t + service.durationMinutes <= (end ?? 0); t += SLOT) {
-    const candidateEnd = t + service.durationMinutes;
-    const inBreak = breakStart !== null && breakEnd !== null && t < breakEnd && candidateEnd > breakStart;
-    if (inBreak) continue;
-    if (date === today && t < currentMinutes) continue;
+  if (start === null || end === null) return [];
 
-    let free = true;
-    for (let s = t; s < candidateEnd; s += SLOT) {
-      if (occupied.has(fromMinutes(s))) {
-        free = false;
-        break;
-      }
+const scheduleStart = start;
+const scheduleEnd = end;
+
+for (
+  let t = scheduleStart;
+  t + service.durationMinutes <= scheduleEnd;
+  t += SLOT
+) {
+  const candidateEnd = t + service.durationMinutes;
+
+  const inBreak =
+    breakStart !== null &&
+    breakEnd !== null &&
+    t < breakEnd &&
+    candidateEnd > breakStart;
+
+  if (inBreak) continue;
+
+  if (date === today && t < currentMinutes) continue;
+
+  let free = true;
+
+  for (let s = t; s < candidateEnd; s += SLOT) {
+    if (occupied.has(fromMinutes(s))) {
+      free = false;
+      break;
     }
-    if (free) result.push(fromMinutes(t));
   }
-  return result;
+
+  if (free) {
+    result.push(fromMinutes(t));
+  }
+}
+
+return result;
 }
 
 export async function createBooking(args: {
