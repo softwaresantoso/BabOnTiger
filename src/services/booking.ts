@@ -136,26 +136,32 @@ export async function createBooking(args: {
     }
 
     const booking: Booking = {
-      id: bookingRef.id,
-      code,
-      businessId: BUSINESS_ID,
-      customerId: args.customerId,
-      customerName: args.customerName,
-      customerPhone: args.customerPhone,
-      barberId: args.barber.id,
-      barberName: args.barber.name,
-      serviceId: args.service.id,
-      serviceName: args.service.name,
-      durationMinutes: args.service.durationMinutes,
-      price: args.service.price,
-      date: args.date,
-      startTime: args.startTime,
-      endTime: end,
-      status: "PENDING",
-      notes: args.notes,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
+  id: bookingRef.id,
+  code,
+  businessId: BUSINESS_ID,
+  customerId: args.customerId,
+  customerName: args.customerName,
+  barberId: args.barber.id,
+  barberName: args.barber.name,
+  serviceId: args.service.id,
+  serviceName: args.service.name,
+  durationMinutes: args.service.durationMinutes,
+  price: args.service.price,
+  date: args.date,
+  startTime: args.startTime,
+  endTime: end,
+  status: "PENDING",
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+
+  ...(args.customerPhone !== undefined
+    ? { customerPhone: args.customerPhone }
+    : {}),
+
+  ...(args.notes !== undefined
+    ? { notes: args.notes }
+    : {})
+};
 
     tx.set(bookingRef, booking);
     slotTimes.forEach((slotTime) => {
