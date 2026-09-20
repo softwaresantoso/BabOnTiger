@@ -160,7 +160,12 @@ service cloud.firestore {
         allow create: if (staffOfBranch(businessId, request.resource.data.branchId)
           || (isCustomer() && sameBusiness(businessId) && request.resource.data.customerId == request.auth.uid))
           && request.resource.data.businessId == businessId;
-        allow update: if staffOfBranch(businessId, resource.data.branchId)
+        allow update: if ownerOf(businessId)
+          || (isBarber() && sameBusiness(businessId)
+              && resource.data.branchId == userData().branchId
+              && request.resource.data.businessId == resource.data.businessId
+              && request.resource.data.branchId == resource.data.branchId
+              && request.resource.data.barberId == userData().barberId)
           || (isCustomer() && sameBusiness(businessId) && resource.data.customerId == request.auth.uid
               && request.resource.data.customerId == resource.data.customerId
               && request.resource.data.businessId == resource.data.businessId);

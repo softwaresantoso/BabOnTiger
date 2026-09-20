@@ -113,3 +113,43 @@ The frontend must not be treated as the security boundary. Every future write se
 ### Important
 
 Queue numbering is currently implemented with a Firestore counter document. For production-grade anti-abuse guarantees, the counter mutation should eventually move to a trusted backend/Cloudflare Worker or Firebase callable backend.
+
+## STEP 6 — Owner Dashboard & Operational Control
+
+- Branch-aware Owner dashboard.
+- Daily booking and queue metrics.
+- Current/next queue visibility.
+- Owner queue actions: call, start service, complete, no-show.
+- Automatic dashboard refresh every 15 seconds.
+
+## STEP 7 — Barber Workspace
+
+This stage turns the barber route into an operational workspace instead of a booking-status editor.
+
+### Barber workspace
+- Barber account is scoped to its assigned `branchId` and `barberId`.
+- Daily queue board for the barber's branch.
+- `Semua` and `Saya` queue filters.
+- Barber can claim an unassigned queue/customer for themselves, supporting the rule that a barber may serve a customer who was not originally assigned to them.
+- Queue workflow: call → start → complete.
+- No-show action for a called customer.
+- Barber sees assigned bookings for the current business date.
+- Daily summary: bookings, own queues, completed, no-show, and branch completed count.
+
+### Attendance foundation
+- Manual barber check-in/check-out is implemented.
+- Attendance uses a deterministic daily document: `{barberId}_{date}`.
+- Business timezone is respected when calculating the daily key.
+- QR check-in is intentionally left for the Attendance + QR stage; the Step 7 UI identifies this explicitly.
+
+### Security
+- Barber queue updates are constrained by Firestore rules to the barber's own branch and `barberId`.
+- Barber attendance reads/writes are constrained to the barber's branch.
+- Owner retains operational control.
+
+### Not included yet
+- Transaction creation/finalization and barber revenue.
+- Product stock operations.
+- QR scanner/generator.
+- WhatsApp notification automation.
+- Excel reports.

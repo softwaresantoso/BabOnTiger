@@ -151,6 +151,7 @@ export interface Queue {
   barberName?: string;
   serviceId: string;
   serviceName: string;
+  source?: "ONLINE" | "WALK_IN";
   status: "BOOKED" | "WAITING" | "CALLED" | "IN_SERVICE" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
   calledAt?: unknown;
   startedAt?: unknown;

@@ -38,13 +38,33 @@ export async function createQueueEntry(args: {
       id: queueRef.id, businessId: BUSINESS_ID, branchId: args.branchId, date: args.date,
       queueNumber, bookingId: args.bookingId, customerId: args.customerId, customerName: args.customerName,
       customerPhone: args.customerPhone, barberId: args.barberId, barberName: args.barberName,
-      serviceId: args.service.id, serviceName: args.service.name,
+      serviceId: args.service.id, serviceName: args.service.name, source: args.source,
       status: args.initialStatus ?? (args.source === "WALK_IN" ? "WAITING" : "BOOKED"),
       createdAt: serverTimestamp(), updatedAt: serverTimestamp()
     };
     tx.set(queueRef, queue);
   });
   return { id: queueRef.id, queueNumber };
+}
+
+export async function claimQueueForBarber(queueId: string, barberId: string, barberName: string) {
+  await runTransaction(db, async tx => {
+    const ref = docRef("queues", queueId);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Antrean tidak ditemukan.");
+    const queue = snap.data() as Queue;
+    if (["COMPLETED", "NO_SHOW", "CANCELLED"].includes(queue.status)) {
+      throw new Error("Antrean ini sudah selesai dan tidak dapat diambil.");
+    }
+    if (queue.barberId && queue.barberId !== barberId) {
+      throw new Error("Antrean sudah ditangani barber lain.");
+    }
+    tx.update(ref, {
+      barberId,
+      barberName,
+      updatedAt: serverTimestamp(),
+    });
+  });
 }
 
 export async function transitionQueue(queueId: string, status: Queue["status"], extra: Record<string, unknown> = {}) {
