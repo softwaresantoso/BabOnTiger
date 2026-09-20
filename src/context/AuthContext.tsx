@@ -19,8 +19,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return observeAuth(async (user) => {
       setFirebaseUser(user);
-      setProfile(user ? await getProfile(user) : null);
-      setLoading(false);
+      try {
+        setProfile(user ? await getProfile(user) : null);
+      } finally {
+        setLoading(false);
+      }
     });
   }, []);
 

@@ -68,44 +68,29 @@ export async function getAvailableSlots(
   const today = now.toISOString().slice(0, 10);
   const currentMinutes = now.getHours() * 60 + now.getMinutes() + 30;
 
-  const result: string[] = [];
+  // A schedule must have both a start and end time before slots can be generated.
   if (start === null || end === null) return [];
 
-const scheduleStart = start;
-const scheduleEnd = end;
+  const scheduleStart = start;
+  const scheduleEnd = end;
 
-for (
-  let t = scheduleStart;
-  t + service.durationMinutes <= scheduleEnd;
-  t += SLOT
-) {
-  const candidateEnd = t + service.durationMinutes;
+  const result: string[] = [];
+  for (let t = scheduleStart; t + service.durationMinutes <= scheduleEnd; t += SLOT) {
+    const candidateEnd = t + service.durationMinutes;
+    const inBreak = breakStart !== null && breakEnd !== null && t < breakEnd && candidateEnd > breakStart;
+    if (inBreak) continue;
+    if (date === today && t < currentMinutes) continue;
 
-  const inBreak =
-    breakStart !== null &&
-    breakEnd !== null &&
-    t < breakEnd &&
-    candidateEnd > breakStart;
-
-  if (inBreak) continue;
-
-  if (date === today && t < currentMinutes) continue;
-
-  let free = true;
-
-  for (let s = t; s < candidateEnd; s += SLOT) {
-    if (occupied.has(fromMinutes(s))) {
-      free = false;
-      break;
+    let free = true;
+    for (let s = t; s < candidateEnd; s += SLOT) {
+      if (occupied.has(fromMinutes(s))) {
+        free = false;
+        break;
+      }
     }
+    if (free) result.push(fromMinutes(t));
   }
-
-  if (free) {
-    result.push(fromMinutes(t));
-  }
-}
-
-return result;
+  return result;
 }
 
 export async function createBooking(args: {
@@ -136,32 +121,27 @@ export async function createBooking(args: {
     }
 
     const booking: Booking = {
-  id: bookingRef.id,
-  code,
-  businessId: BUSINESS_ID,
-  customerId: args.customerId,
-  customerName: args.customerName,
-  barberId: args.barber.id,
-  barberName: args.barber.name,
-  serviceId: args.service.id,
-  serviceName: args.service.name,
-  durationMinutes: args.service.durationMinutes,
-  price: args.service.price,
-  date: args.date,
-  startTime: args.startTime,
-  endTime: end,
-  status: "PENDING",
-  createdAt: serverTimestamp(),
-  updatedAt: serverTimestamp(),
-
-  ...(args.customerPhone !== undefined
-    ? { customerPhone: args.customerPhone }
-    : {}),
-
-  ...(args.notes !== undefined
-    ? { notes: args.notes }
-    : {})
-};
+      id: bookingRef.id,
+      code,
+      businessId: BUSINESS_ID,
+      customerId: args.customerId,
+      customerName: args.customerName,
+      customerPhone: args.customerPhone,
+      barberId: args.barber.id,
+      barberName: args.barber.name,
+      serviceId: args.service.id,
+      serviceName: args.service.name,
+      durationMinutes: args.service.durationMinutes,
+      price: args.service.price,
+      date: args.date,
+      startTime: args.startTime,
+      endTime: end,
+      status: "PENDING",
+      source: "ONLINE",
+      notes: args.notes,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
 
     tx.set(bookingRef, booking);
     slotTimes.forEach((slotTime) => {

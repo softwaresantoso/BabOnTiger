@@ -1,7 +1,7 @@
 {
-  "name": "BabOn Tiger mark I",
-  "short_name": "BabOn Tiger",
-  "description": "Booking Online Barber Shop",
+  "name": "Barber Online",
+  "short_name": "Barber Online",
+  "description": "Custom Barber Operations PWA",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AuthProvider } from "./context/AuthContext";
+import { BusinessProvider } from "./context/BusinessContext";
 import "./styles.css";
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
@@ -12,9 +13,11 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <BusinessProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BusinessProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

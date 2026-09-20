@@ -19,40 +19,45 @@ service cloud.firestore {
     }
 
     function staff(businessId) {
-      return hasBusiness(businessId) && (role("admin") || role("barber"));
+      return hasBusiness(businessId) && (role("owner") || role("barber"));
     }
 
     match /users/{uid} {
       allow create: if signedIn() && uid == request.auth.uid
         && request.resource.data.role == "customer";
-      allow read: if signedIn() && (uid == request.auth.uid || role("admin"));
+      allow read: if signedIn() && (uid == request.auth.uid || role("owner"));
       allow update: if signedIn() && (uid == request.auth.uid && resource.data.role == "customer")
-        || role("admin");
-      allow delete: if role("admin");
+        || role("owner");
+      allow delete: if role("owner");
     }
 
     match /businesses/{businessId} {
       allow read: if true;
-      allow write: if role("admin") && hasBusiness(businessId);
+      allow write: if role("owner") && hasBusiness(businessId);
+
+      match /branches/{branchId} {
+        allow read: if true;
+        allow create, update, delete: if role("owner") && hasBusiness(businessId);
+      }
 
       match /services/{serviceId} {
         allow read: if resource.data.active == true || staff(businessId);
-        allow create, update, delete: if role("admin") && hasBusiness(businessId);
+        allow create, update, delete: if role("owner") && hasBusiness(businessId);
       }
 
       match /barbers/{barberId} {
         allow read: if resource.data.active == true || staff(businessId);
-        allow create, update, delete: if role("admin") && hasBusiness(businessId);
+        allow create, update, delete: if role("owner") && hasBusiness(businessId);
       }
 
       match /schedules/{scheduleId} {
         allow read: if true;
-        allow create, update, delete: if role("admin") && hasBusiness(businessId);
+        allow create, update, delete: if role("owner") && hasBusiness(businessId);
       }
 
       match /specialSchedules/{scheduleId} {
         allow read: if true;
-        allow create, update, delete: if role("admin") && hasBusiness(businessId);
+        allow create, update, delete: if role("owner") && hasBusiness(businessId);
       }
 
       match /bookings/{bookingId} {
@@ -71,7 +76,7 @@ service cloud.firestore {
             && request.resource.data.customerId == resource.data.customerId
             && request.resource.data.status == "CANCELLED");
 
-        allow delete: if role("admin") && hasBusiness(businessId);
+        allow delete: if role("owner") && hasBusiness(businessId);
       }
 
       match /bookingLocks/{lockId} {
@@ -87,7 +92,7 @@ service cloud.firestore {
 
       match /transactions/{transactionId} {
         allow read: if staff(businessId);
-        allow create, update, delete: if role("admin") && hasBusiness(businessId);
+        allow create, update, delete: if role("owner") && hasBusiness(businessId);
       }
     }
   }

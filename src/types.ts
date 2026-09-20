@@ -1,4 +1,5 @@
-export type Role = "customer" | "admin" | "barber";
+export type Role = "customer" | "owner" | "barber";
+
 export type BookingStatus =
   | "PENDING"
   | "CONFIRMED"
@@ -8,37 +9,88 @@ export type BookingStatus =
   | "CANCELLED"
   | "NO_SHOW";
 
+export interface Business {
+  id: string;
+  name: string;
+  slug?: string;
+  logoUrl?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  timezone: string;
+  currency: string;
+  active: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface Branch {
+  id: string;
+  businessId: string;
+  name: string;
+  code?: string;
+  address?: string;
+  phone?: string;
+  latitude?: number;
+  longitude?: number;
+  openingHours?: Record<string, unknown>;
+  active: boolean;
+  queueSettings?: {
+    resetDaily?: boolean;
+    prefix?: string;
+  };
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
 export interface UserProfile {
   uid: string;
   businessId: string;
   name: string;
   phone?: string;
   role: Role;
+  branchId?: string;
   barberId?: string;
   active?: boolean;
 }
 
 export interface Service {
   id: string;
+  businessId?: string;
+  branchId?: string;
   name: string;
+  category?: string;
   description?: string;
   durationMinutes: number;
   price: number;
+  barberIds?: string[];
+  imageUrl?: string;
   active: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }
 
 export interface Barber {
   id: string;
+  businessId?: string;
+  branchId?: string;
+  userId?: string;
   name: string;
-  bio?: string;
   phone?: string;
+  bio?: string;
+  photoUrl?: string;
+  specialties?: string[];
   active: boolean;
-  avatarUrl?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }
 
 export interface Schedule {
   id: string;
   barberId: string;
+  branchId?: string;
   dayOfWeek: number;
   startTime: string;
   endTime: string;
@@ -50,6 +102,7 @@ export interface Schedule {
 export interface SpecialSchedule {
   id: string;
   barberId: string;
+  branchId?: string;
   date: string;
   type: "OPEN" | "CLOSED";
   startTime?: string;
@@ -63,6 +116,7 @@ export interface Booking {
   id: string;
   code: string;
   businessId: string;
+  branchId?: string;
   customerId: string;
   customerName: string;
   customerPhone?: string;
@@ -75,17 +129,82 @@ export interface Booking {
   date: string;
   startTime: string;
   endTime: string;
+  queueNumber?: number;
+  source?: "ONLINE" | "WALK_IN";
   status: BookingStatus;
   notes?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
 
+export interface Queue {
+  id: string;
+  businessId: string;
+  branchId: string;
+  date: string;
+  queueNumber: number;
+  bookingId?: string;
+  customerId: string;
+  customerName: string;
+  customerPhone?: string;
+  barberId: string;
+  barberName: string;
+  serviceId: string;
+  serviceName: string;
+  status: "WAITING" | "CALLED" | "IN_SERVICE" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
+  calledAt?: unknown;
+  startedAt?: unknown;
+  completedAt?: unknown;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface Attendance {
+  id: string;
+  businessId: string;
+  branchId: string;
+  barberId: string;
+  barberName: string;
+  date: string;
+  checkInAt: unknown;
+  checkOutAt?: unknown;
+  status: "PRESENT" | "COMPLETED";
+  checkInMethod: "QR" | "MANUAL";
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface TransactionItem {
+  type: "SERVICE" | "PRODUCT";
+  itemId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
 export interface Transaction {
   id: string;
-  bookingId: string;
-  amount: number;
-  method: "CASH" | "QRIS" | "TRANSFER" | "OTHER";
+  businessId?: string;
+  branchId?: string;
+  bookingId?: string;
+  queueId?: string;
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  barberId?: string;
+  barberName?: string;
+  items?: TransactionItem[];
+  subtotal?: number;
+  discount?: number;
+  total: number;
+  promoId?: string;
+  promoCode?: string;
+  method?: "CASH" | "QRIS" | "TRANSFER" | "OTHER";
+  paymentMethod?: "CASH" | "QRIS" | "TRANSFER" | "OTHER";
   status: "UNPAID" | "PAID" | "REFUNDED";
+  paymentStatus?: "UNPAID" | "PAID" | "REFUNDED";
   paidAt?: unknown;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }

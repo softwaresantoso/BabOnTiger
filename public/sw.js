@@ -1,4 +1,4 @@
-const CACHE = "babon-tiger-v1";
+const CACHE = "barber-online-v1";
 const APP_SHELL = ["/", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
