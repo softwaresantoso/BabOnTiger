@@ -30,7 +30,8 @@ async function occupiedSlots(barberId: string, date: string) {
 export async function getAvailableSlots(barber: Barber, service: Service, date: string): Promise<string[]> {
   const window = await scheduleWindow(barber, date); if (!window) return [];
   const occupied = await occupiedSlots(barber.id, date);
-  const now = new Date(); const today = now.toISOString().slice(0, 10); const currentMinutes = now.getHours() * 60 + now.getMinutes() + 30;
+  const now = new Date(); const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(now); const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(now);
+  const currentMinutes = Number(parts.find(x => x.type === "hour")?.value || 0) * 60 + Number(parts.find(x => x.type === "minute")?.value || 0) + 30;
   const result: string[] = [];
   for (let t = window.start; t + service.durationMinutes <= window.end; t += SLOT) {
     const candidateEnd = t + service.durationMinutes;
@@ -53,33 +54,50 @@ export async function getAvailableBarbers(barbers: Barber[], service: Service, d
 
 export async function createBooking(args: {
   customerId: string; customerName: string; customerPhone?: string; branchId: string;
-  barber?: Barber; service: Service; date: string; startTime: string; notes?: string;
+  barber?: Barber; services: Service[]; date: string; startTime: string; notes?: string;
 }) {
+  if (!args.services.length) throw new Error("Pilih minimal satu layanan.");
+  const totalDuration = args.services.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const totalPrice = args.services.reduce((sum, s) => sum + s.price, 0);
+  const selectedIds = new Set(args.services.flatMap(s => s.barberIds?.length ? s.barberIds : []));
   let candidates = args.barber ? [args.barber] : [];
   if (!candidates.length) {
     const snap = await getDocs(query(collection(db, "businesses", BUSINESS_ID, "barbers"), where("active", "==", true)));
     candidates = snap.docs.map(d => ({ id: d.id, ...d.data() } as Barber)).filter(b => !b.branchId || b.branchId === args.branchId);
   }
-  candidates = candidates.filter(b => !args.service.barberIds?.length || args.service.barberIds.includes(b.id));
+  candidates = candidates.filter(b => !selectedIds.size || selectedIds.has(b.id));
   const availableCandidates: Barber[] = [];
+  const combinedService: Service = { ...args.services[0], name: args.services.map(s => s.name).join(" + "), durationMinutes: totalDuration, price: totalPrice };
   for (const barber of candidates) {
-    if ((await getAvailableSlots(barber, args.service, args.date)).includes(args.startTime)) availableCandidates.push(barber);
+    if ((await getAvailableSlots(barber, combinedService, args.date)).includes(args.startTime)) availableCandidates.push(barber);
   }
-  if (!availableCandidates.length) throw new Error("Tidak ada barber yang tersedia pada slot tersebut. Silakan pilih jam lain.");
+  if (!availableCandidates.length) throw new Error("Tidak ada barber yang tersedia pada slot tersebut. Silakan pilih jam atau barber lain.");
   const bookingRef = doc(collection(db, "businesses", BUSINESS_ID, "bookings"));
-  const end = endTime(args.startTime, args.service.durationMinutes);
+  const end = endTime(args.startTime, totalDuration);
   const code = `BO-${args.date.replaceAll("-", "")}-${args.startTime.replace(":", "")}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-  let selectedBarber = availableCandidates[0];
+  const selectedBarber = availableCandidates[0];
   await runTransaction(db, async tx => {
-    const slotTimes = []; for (let s = toMinutes(args.startTime); s < toMinutes(end); s += SLOT) slotTimes.push(fromMinutes(s));
+    const slotTimes: string[] = []; for (let s = toMinutes(args.startTime); s < toMinutes(end); s += SLOT) slotTimes.push(fromMinutes(s));
     const refs = slotTimes.map(t => lockRef(selectedBarber.id, args.date, t));
     const snaps = []; for (const ref of refs) snaps.push(await tx.get(ref));
     if (snaps.some(s => s.exists())) throw new Error("Slot baru saja diambil pelanggan lain. Silakan pilih waktu lain.");
-    const booking: Booking = { id: bookingRef.id, code, businessId: BUSINESS_ID, branchId: args.branchId, customerId: args.customerId, customerName: args.customerName, customerPhone: args.customerPhone, barberId: selectedBarber.id, barberName: selectedBarber.name, serviceId: args.service.id, serviceName: args.service.name, durationMinutes: args.service.durationMinutes, price: args.service.price, date: args.date, startTime: args.startTime, endTime: end, status: "PENDING", source: "ONLINE", notes: args.notes, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    const booking: Booking = {
+      id: bookingRef.id, code, businessId: BUSINESS_ID, branchId: args.branchId,
+      customerId: args.customerId, customerName: args.customerName, customerPhone: args.customerPhone,
+      barberId: selectedBarber.id, barberName: selectedBarber.name,
+      serviceId: args.services[0].id, serviceName: args.services.map(s => s.name).join(" + "),
+      durationMinutes: totalDuration, price: totalPrice,
+      serviceItems: args.services.map(s => ({ serviceId: s.id, serviceName: s.name, durationMinutes: s.durationMinutes, price: s.price })),
+      date: args.date, startTime: args.startTime, endTime: end, status: "PENDING", source: "ONLINE", notes: args.notes,
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+    };
     tx.set(bookingRef, booking);
-    slotTimes.forEach(slotTime => tx.set(lockRef(selectedBarber.id, args.date, slotTime), { businessId: BUSINESS_ID, branchId: args.branchId, barberId: selectedBarber.id, date: args.date, slotTime, bookingId: bookingRef.id, ownerUid: args.customerId, createdAt: serverTimestamp() }));
+    slotTimes.forEach(slotTime => tx.set(lockRef(selectedBarber.id, args.date, slotTime), {
+      businessId: BUSINESS_ID, branchId: args.branchId, barberId: selectedBarber.id, date: args.date,
+      slotTime, bookingId: bookingRef.id, ownerUid: args.customerId, createdAt: serverTimestamp()
+    }));
   });
-  const queue = await createQueueEntry({ branchId: args.branchId, date: args.date, customerId: args.customerId, customerName: args.customerName, customerPhone: args.customerPhone, barberId: selectedBarber.id, barberName: selectedBarber.name, service: args.service, bookingId: bookingRef.id, source: "ONLINE", initialStatus: "BOOKED" });
+  const queue = await createQueueEntry({ branchId: args.branchId, date: args.date, customerId: args.customerId, customerName: args.customerName, customerPhone: args.customerPhone, barberId: selectedBarber.id, barberName: selectedBarber.name, service: combinedService, bookingId: bookingRef.id, source: "ONLINE", initialStatus: "BOOKED" });
   return { id: bookingRef.id, code, queueNumber: queue.queueNumber, barber: selectedBarber };
 }
 

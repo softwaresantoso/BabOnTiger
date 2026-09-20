@@ -112,6 +112,13 @@ export interface SpecialSchedule {
   note?: string;
 }
 
+export interface BookingServiceItem {
+  serviceId: string;
+  serviceName: string;
+  durationMinutes: number;
+  price: number;
+}
+
 export interface Booking {
   id: string;
   code: string;
@@ -126,6 +133,7 @@ export interface Booking {
   serviceName: string;
   durationMinutes: number;
   price: number;
+  serviceItems?: BookingServiceItem[];
   date: string;
   startTime: string;
   endTime: string;

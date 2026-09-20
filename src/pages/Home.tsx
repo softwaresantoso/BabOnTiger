@@ -3,7 +3,7 @@ import { ArrowRight, CalendarCheck2, Clock3, ShieldCheck, Star } from "lucide-re
 import { useBusiness } from "../context/BusinessContext";
 
 export default function Home() {
-  const { business } = useBusiness();
+  const { business, branches } = useBusiness();
   return <div className="home">
     <section className="hero">
       <div className="hero-copy">
@@ -17,6 +17,10 @@ export default function Home() {
         <div className="tiger-eye">BO</div>
         <div className="hero-card-label">YOUR TIME. YOUR STYLE.</div>
       </div>
+    </section>
+    <section className="section">
+      <div className="section-head"><div><div className="eyebrow">PILIH CABANG</div><h2>Booking di cabang pilihanmu.</h2></div></div>
+      {branches.length === 0 ? <div className="panel empty">Belum ada cabang aktif.</div> : <div className="branch-home-grid">{branches.map(branch => <Link className="branch-home-card" key={branch.id} to={`/branch/${branch.id}`}><div><span className="eyebrow">CABANG</span><h3>{branch.name}</h3><p>{branch.address || "Alamat belum diatur"}</p></div><ArrowRight size={18}/></Link>)}</div>}
     </section>
     <section className="section">
       <div className="section-head"><div><div className="eyebrow">CARA KERJA</div><h2>Satu fondasi untuk operasional barber.</h2></div></div>

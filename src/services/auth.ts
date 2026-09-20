@@ -7,7 +7,7 @@ import {
   updateProfile,
   type User
 } from "firebase/auth";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db, BUSINESS_ID } from "../lib/firebase";
 import type { UserProfile } from "../types";
 
@@ -54,4 +54,11 @@ export async function ensureGuestCustomer(name: string, phone: string) {
   const profile: UserProfile = { uid: user.uid, businessId: BUSINESS_ID, name, phone, role: "customer", active: true };
   await setDoc(doc(db, "users", user.uid), { ...profile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
   return profile;
+}
+
+
+export async function updateCustomerProfile(uid: string, name: string, phone: string) {
+  if (!auth.currentUser || auth.currentUser.uid !== uid) throw new Error("Akses profil tidak valid.");
+  await updateProfile(auth.currentUser, { displayName: name });
+  await updateDoc(doc(db, "users", uid), { name, phone, updatedAt: serverTimestamp() });
 }

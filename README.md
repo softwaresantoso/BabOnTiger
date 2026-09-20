@@ -153,3 +153,29 @@ This stage turns the barber route into an operational workspace instead of a boo
 - QR scanner/generator.
 - WhatsApp notification automation.
 - Excel reports.
+
+## STEP 7 — Barber Workspace
+
+- Dedicated barber workspace under `/barber`.
+- Barber sees branch queue, own bookings, attendance status, and daily operational summary.
+- Barber can take unassigned queue entries when permitted by branch workflow.
+- Queue actions: call, start service, complete, and no-show.
+- Manual attendance check-in/check-out foundation is included; QR check-in remains in the dedicated Attendance + QR stage.
+- Barber access remains branch-scoped by Firestore rules.
+
+## STEP 8 — Customer Experience
+
+- Public branch discovery and branch detail pages under `/branch/:branchId`.
+- Customer booking flow is branch-first and supports multiple services in one booking.
+- Booking total duration and total price are calculated from all selected services.
+- Barber selection supports a specific barber or `Barber mana saja`.
+- Customer dashboard separates active bookings and booking history.
+- Customer can cancel eligible bookings and see branch, barber, service, schedule, queue code, and status.
+- Customer account page supports profile updates and password reset.
+- Login page includes password-reset flow.
+- Public home now exposes active branch cards for easier customer discovery.
+- Existing guest booking remains available; login is not required to submit an online booking.
+
+### Step 8 data compatibility
+
+Existing single-service bookings remain readable. New bookings may include `serviceItems[]` while retaining the primary `serviceId`, `serviceName`, `durationMinutes`, and `price` fields for compatibility with existing operational screens.
