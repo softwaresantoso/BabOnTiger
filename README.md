@@ -76,3 +76,23 @@ Critical rule: all business data must remain scoped by `businessId`; branch-spec
 ## Next stage
 
 Stage 4 will refactor Firestore data access and security rules for Business → Branch → User → Barber → Service, then Stage 5 will rebuild Booking + Queue on top of that foundation.
+
+
+## Step 4 — Firestore Architecture & Security
+
+This version establishes the multi-tenant Firestore foundation for Barber Online.
+
+### Tenant model
+- Root user profile: `users/{uid}`
+- Tenant root: `businesses/{businessId}`
+- Branches: `businesses/{businessId}/branches/{branchId}`
+- Operational collections are nested below the tenant: `barbers`, `services`, `products`, `promos`, `bookings`, `queues`, `transactions`, `attendance`, `stockMovements`, `promoUsages`, `bookingLocks`, `schedules`, `specialSchedules`, and `settings`.
+
+### Security model
+Firestore rules now distinguish owner, barber, and customer access. Staff access is constrained by `businessId`; barber operational access is additionally constrained by `branchId`. Customer booking/transaction visibility is limited to their own records. Public storefront reads are limited to active public records where applicable.
+
+### Important implementation rule
+The frontend must not be treated as the security boundary. Every future write service must include tenant and branch identifiers in its payload, while Firestore rules enforce the same constraints.
+
+### Indexes
+`firestore/firestore.indexes.json` includes the core queries planned for booking, queue, transaction, attendance, inventory, service, barber, and user screens. Additional indexes should only be added when Firestore returns a concrete index requirement.

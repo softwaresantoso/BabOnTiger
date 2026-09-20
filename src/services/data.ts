@@ -3,9 +3,10 @@ import {
   serverTimestamp, setDoc, updateDoc, where, limit
 } from "firebase/firestore";
 import { db, BUSINESS_ID } from "../lib/firebase";
+import { businessCollection } from "./business";
 import type { Barber, Booking, BookingStatus, Schedule, Service, SpecialSchedule, Transaction } from "../types";
 
-const business = (name: string) => collection(db, "businesses", BUSINESS_ID, name);
+const business = (name: string) => businessCollection(name);
 
 export async function getActiveServices(): Promise<Service[]> {
   const snap = await getDocs(query(business("services"), where("active", "==", true), orderBy("name")));

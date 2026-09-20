@@ -208,3 +208,62 @@ export interface Transaction {
   createdAt?: unknown;
   updatedAt?: unknown;
 }
+
+export interface Product {
+  id: string;
+  businessId: string;
+  branchId: string;
+  name: string;
+  sku?: string;
+  category?: string;
+  description?: string;
+  costPrice: number;
+  sellingPrice: number;
+  stock: number;
+  minimumStock: number;
+  imageUrl?: string;
+  active: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface Promo {
+  id: string;
+  businessId: string;
+  title: string;
+  description?: string;
+  imageUrl?: string;
+  promoCode?: string;
+  discountType: "PERCENTAGE" | "FIXED";
+  discountValue: number;
+  minimumTransaction?: number;
+  startAt?: unknown;
+  endAt?: unknown;
+  usageLimit?: number;
+  customerUsageLimit?: number;
+  branchIds?: string[];
+  serviceIds?: string[];
+  productIds?: string[];
+  active: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export type StockMovementType = "PURCHASE" | "SALE" | "ADJUSTMENT" | "RETURN" | "INITIAL";
+
+export interface StockMovement {
+  id: string;
+  businessId: string;
+  branchId: string;
+  productId: string;
+  productName: string;
+  type: StockMovementType;
+  quantity: number;
+  previousStock: number;
+  newStock: number;
+  referenceId?: string;
+  referenceType?: string;
+  note?: string;
+  createdBy: string;
+  createdAt?: unknown;
+}

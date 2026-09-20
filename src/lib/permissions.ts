@@ -19,3 +19,12 @@ export function isCustomer(profile: UserProfile | null) {
 export function sameBusiness(profile: UserProfile | null, businessId: string) {
   return Boolean(profile && profile.businessId === businessId);
 }
+
+export function sameBranch(profile: UserProfile | null, branchId?: string) {
+  if (!profile || !branchId) return false;
+  return profile.role === "owner" || profile.branchId === branchId;
+}
+
+export function canManageBranch(profile: UserProfile | null, branchId?: string) {
+  return Boolean(profile && profile.role === "owner" && profile.businessId && branchId);
+}
