@@ -139,12 +139,31 @@ service cloud.firestore {
         allow delete: if ownerOf(businessId);
       }
 
+      match /queueCounters/{counterId} {
+        allow get: if sameBusiness(businessId);
+        allow list: if false;
+        allow create: if sameBusiness(businessId)
+          && request.resource.data.businessId == businessId
+          && request.resource.data.nextNumber >= 2;
+        allow update: if sameBusiness(businessId)
+          && request.resource.data.businessId == resource.data.businessId
+          && request.resource.data.branchId == resource.data.branchId
+          && request.resource.data.date == resource.data.date
+          && request.resource.data.nextNumber == resource.data.nextNumber + 1;
+        allow delete: if ownerOf(businessId);
+      }
+
       match /queues/{queueId} {
         allow get, list: if sameBusiness(businessId)
           && (isOwner() || (isBarber() && userData().branchId == resource.data.branchId)
               || (isCustomer() && resource.data.customerId == request.auth.uid));
-        allow create, update: if staffOfBranch(businessId, request.resource.data.branchId)
+        allow create: if (staffOfBranch(businessId, request.resource.data.branchId)
+          || (isCustomer() && sameBusiness(businessId) && request.resource.data.customerId == request.auth.uid))
           && request.resource.data.businessId == businessId;
+        allow update: if staffOfBranch(businessId, resource.data.branchId)
+          || (isCustomer() && sameBusiness(businessId) && resource.data.customerId == request.auth.uid
+              && request.resource.data.customerId == resource.data.customerId
+              && request.resource.data.businessId == resource.data.businessId);
         allow delete: if ownerOf(businessId);
       }
 

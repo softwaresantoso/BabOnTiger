@@ -11,12 +11,14 @@ import AdminServices from "./pages/OwnerServices";
 import AdminBarbers from "./pages/OwnerBarbers";
 import AdminCustomers from "./pages/OwnerCustomers";
 import BarberDashboard from "./pages/BarberDashboard";
+import QueueBoard from "./pages/QueueBoard";
 
 export default function App() {
   return <Routes>
     <Route element={<PublicLayout />}>
       <Route path="/" element={<Home />} />
       <Route path="/booking" element={<Booking />} />
+      <Route path="/queue/:branchId" element={<QueueBoard />} />
       <Route path="/booking/success/:id" element={<BookingSuccess />} />
       <Route path="/login" element={<Login />} />
     </Route>

@@ -31,6 +31,7 @@ export function PublicLayout() {
         <Link to="/">Beranda</Link>
         {branches.length > 0 && <label className="branch-switcher"><Store size={15}/><select value={selectedBranchId ?? ""} onChange={e => setSelectedBranchId(e.target.value)}><option value="">Cabang</option>{branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>}
         <Link to="/booking">Booking</Link>
+        <Link to={selectedBranchId ? `/queue/${selectedBranchId}` : "/"}>Antrean</Link>
         {profile ? <Link to={homeForRole(profile.role)}>Dashboard</Link> : <Link to="/login">Masuk</Link>}
         {profile && <button className="link-button" onClick={logout}><LogOut size={16}/> Keluar</button>}
       </nav>

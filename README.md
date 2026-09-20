@@ -96,3 +96,20 @@ The frontend must not be treated as the security boundary. Every future write se
 
 ### Indexes
 `firestore/firestore.indexes.json` includes the core queries planned for booking, queue, transaction, attendance, inventory, service, barber, and user screens. Additional indexes should only be added when Firestore returns a concrete index requirement.
+
+
+## STEP 5 — Booking + Queue Engine
+
+- Branch-aware online booking foundation.
+- Customer can book without a registered account by using Firebase Anonymous Authentication (enable Anonymous provider in Firebase Auth).
+- Customer data: name + WhatsApp.
+- Select a specific barber or `Barber mana saja`.
+- Slot availability uses barber schedule, special schedule, service duration, breaks, 30-minute lead time, and booking locks.
+- Booking creates a daily branch queue number through a Firestore counter.
+- Queue lifecycle: `BOOKED → WAITING → CALLED → IN_SERVICE → COMPLETED`; exceptions include `NO_SHOW` and `CANCELLED`.
+- Walk-in queue creation service foundation is included for the next operational UI stage.
+- Public queue board route: `/queue/:branchId` (current Firestore rules keep operational queue records authenticated; a sanitized public queue projection should be added before exposing live queue data publicly).
+
+### Important
+
+Queue numbering is currently implemented with a Firestore counter document. For production-grade anti-abuse guarantees, the counter mutation should eventually move to a trusted backend/Cloudflare Worker or Firebase callable backend.

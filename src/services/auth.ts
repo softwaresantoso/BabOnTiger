@@ -1,5 +1,6 @@
 import {
   createUserWithEmailAndPassword,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
@@ -44,4 +45,13 @@ export async function getProfile(user: User): Promise<UserProfile | null> {
 
 export function observeAuth(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
+}
+
+export async function ensureGuestCustomer(name: string, phone: string) {
+  const credential = auth.currentUser ? { user: auth.currentUser } : await signInAnonymously(auth);
+  const user = credential.user;
+  await updateProfile(user, { displayName: name });
+  const profile: UserProfile = { uid: user.uid, businessId: BUSINESS_ID, name, phone, role: "customer", active: true };
+  await setDoc(doc(db, "users", user.uid), { ...profile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+  return profile;
 }
