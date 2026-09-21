@@ -22,9 +22,12 @@ import OwnerAttendance from "./pages/OwnerAttendance";
 import BarberCheckIn from "./pages/BarberCheckIn";
 import OwnerReports from "./pages/OwnerReports";
 import OwnerSettings from "./pages/OwnerSettings";
+import PWAExperience from "./components/PWAExperience";
 
 export default function App() {
-  return <Routes>
+  return <>
+    <PWAExperience />
+    <Routes>
     <Route element={<PublicLayout />}>
       <Route path="/" element={<Home />} />
       <Route path="/booking" element={<Booking />} />
@@ -69,5 +72,6 @@ export default function App() {
     </Route>
 
     <Route path="*" element={<Navigate to="/" replace />} />
-  </Routes>;
+    </Routes>
+  </>;
 }

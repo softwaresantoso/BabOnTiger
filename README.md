@@ -204,3 +204,13 @@ Existing single-service bookings remain readable. New bookings may include `serv
 ### Cloudinary security boundary
 
 For the Rp0 MVP, use an unsigned upload preset configured in Cloudinary with restrictive upload settings such as allowed formats and a maximum file size. Never add `CLOUDINARY_API_SECRET` or another privileged Cloudinary credential to `.env` variables prefixed with `VITE_`. The browser should only receive the cloud name and unsigned preset name. For a higher-security production setup, replace direct unsigned uploads with a trusted server/worker that signs uploads and validates authorization.
+
+## Step 14 — PWA + Branding
+
+- Installable PWA manifest with runtime business branding.
+- Dynamic theme color, app title, and manifest metadata from the business profile.
+- Business logo is used as the browser icon/manifest icon when available; static BO icons remain the fallback.
+- Service worker v2 caches the application shell and falls back to `index.html` for navigation while offline.
+- Offline/online status and PWA install prompt are surfaced in the UI when supported by the browser.
+- Mobile-first responsive navigation and safe-area handling are included.
+- Firestore data is still server-backed; offline mode should not be treated as guaranteed offline CRUD until a later data-sync strategy is added.
