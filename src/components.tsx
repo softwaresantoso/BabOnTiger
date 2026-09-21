@@ -1,5 +1,5 @@
 import { Link, NavLink, Navigate, Outlet } from "react-router-dom";
-import { CalendarDays, Home, LogOut, Scissors, Users, UserRound, LayoutDashboard, Store, Clock3 } from "lucide-react";
+import { CalendarDays, Home, LogOut, Scissors, Users, UserRound, LayoutDashboard, Store, Clock3, Receipt, Package } from "lucide-react";
 import type { ReactNode } from "react";
 import { useAuth } from "./context/AuthContext";
 import { useBusiness } from "./context/BusinessContext";
@@ -54,7 +54,9 @@ const ownerNav = [
   ["/owner/bookings", "Booking", CalendarDays],
   ["/owner/services", "Layanan", Scissors],
   ["/owner/barbers", "Barber", UserRound],
-  ["/owner/customers", "Pelanggan", Users]
+  ["/owner/customers", "Pelanggan", Users],
+  ["/owner/transactions", "Transaksi", Receipt],
+  ["/owner/products", "Produk & Stok", Package]
 ] as const;
 
 export function AdminLayout() {
@@ -79,7 +81,7 @@ export function BarberLayout() {
     <aside className="sidebar">
       <Logo />
       <div className="side-label">BARBER</div>
-      <nav><NavLink to="/barber" end><LayoutDashboard size={18}/> Hari Ini</NavLink></nav>
+      <nav><NavLink to="/barber" end><LayoutDashboard size={18}/> Hari Ini</NavLink><NavLink to="/barber/transactions"><Receipt size={18}/> Transaksi</NavLink></nav>
       <div className="sidebar-bottom">
         <div className="muted">{profile?.name}</div>
         <button className="btn ghost full" onClick={logout}><LogOut size={16}/> Keluar</button>
