@@ -107,6 +107,7 @@ export async function createTransaction(args: {
       customerId: args.customerId ?? args.booking?.customerId,
       customerName: args.customerName ?? args.booking?.customerName,
       customerPhone: args.customerPhone ?? args.booking?.customerPhone,
+      createdBy: args.createdBy,
       barberId: args.barberId ?? args.booking?.barberId,
       barberName: args.barberName ?? args.booking?.barberName,
       items: normalizedItems,

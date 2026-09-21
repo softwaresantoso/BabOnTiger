@@ -10,20 +10,24 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function activeUser() {
+      return signedIn() && userData().active != false;
+    }
+
     function isOwner() {
-      return signedIn() && userData().role == "owner";
+      return activeUser() && userData().role == "owner";
     }
 
     function isBarber() {
-      return signedIn() && userData().role == "barber";
+      return activeUser() && userData().role == "barber";
     }
 
     function isCustomer() {
-      return signedIn() && userData().role == "customer";
+      return activeUser() && userData().role == "customer";
     }
 
     function sameBusiness(businessId) {
-      return signedIn() && userData().businessId == businessId && userData().active != false;
+      return activeUser() && userData().businessId == businessId;
     }
 
     function ownerOf(businessId) {
@@ -31,85 +35,145 @@ service cloud.firestore {
     }
 
     function barberOfBranch(businessId, branchId) {
-      return sameBusiness(businessId) && isBarber() && userData().branchId == branchId;
+      return sameBusiness(businessId)
+        && isBarber()
+        && userData().branchId == branchId
+        && userData().barberId != null;
     }
 
     function staffOfBranch(businessId, branchId) {
       return ownerOf(businessId) || barberOfBranch(businessId, branchId);
     }
 
-    function publicBusinessDoc() {
-      return resource.data.active == true;
-    }
-
     function ownsUser(uid) {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function branchExists(businessId, branchId) {
+      return exists(/databases/$(database)/documents/businesses/$(businessId)/branches/$(branchId));
+    }
+
+    function branchBelongs(businessId, branchId) {
+      return branchExists(businessId, branchId)
+        && get(/databases/$(database)/documents/businesses/$(businessId)/branches/$(branchId)).data.businessId == businessId;
+    }
+
+    function barberExists(businessId, barberId) {
+      return exists(/databases/$(database)/documents/businesses/$(businessId)/barbers/$(barberId));
+    }
+
+    function serviceExists(businessId, serviceId) {
+      return exists(/databases/$(database)/documents/businesses/$(businessId)/services/$(serviceId));
+    }
+
+    function productExists(businessId, productId) {
+      return exists(/databases/$(database)/documents/businesses/$(businessId)/products/$(productId));
+    }
+
+    function publicActive() {
+      return resource.data.active == true;
+    }
+
     match /users/{uid} {
-      // Customers may create only their own customer profile.
+      // Self-registration is customer-only. Privileged roles must never be self-assigned.
       allow create: if ownsUser(uid)
+        && request.resource.data.uid == uid
         && request.resource.data.role == "customer"
         && request.resource.data.active != false;
 
-      allow read: if ownsUser(uid)
-        || (signedIn() && isOwner() && request.auth.uid != uid &&
-            request.resource.data.businessId == userData().businessId);
+      // Owners can inspect users inside their own business; users can inspect themselves.
+      allow get, list: if ownsUser(uid)
+        || (ownerOf(resource.data.businessId)
+            && resource.data.businessId == userData().businessId);
 
-      allow update: if ownsUser(uid)
-        && resource.data.role == "customer"
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.businessId == resource.data.businessId
-        || (signedIn() && isOwner()
-            && resource.data.businessId == userData().businessId
-            && request.resource.data.businessId == resource.data.businessId);
+      // Customers may change profile fields only. Owners may maintain staff/customer profiles,
+      // but cannot turn a user into another owner or move a user across businesses.
+      allow update: if (
+          ownsUser(uid)
+          && resource.data.role == "customer"
+          && resource.data.businessId == request.resource.data.businessId
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "name", "phone", "active", "updatedAt"
+          ])
+        ) || (
+          ownerOf(resource.data.businessId)
+          && resource.data.businessId == userData().businessId
+          && request.resource.data.businessId == resource.data.businessId
+          && request.resource.data.role in ["customer", "barber"]
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "name", "phone", "role", "branchId", "barberId", "active", "updatedAt"
+          ])
+        );
 
-      allow delete: if signedIn() && isOwner()
+      allow delete: if ownerOf(resource.data.businessId)
         && resource.data.businessId == userData().businessId;
     }
 
     match /businesses/{businessId} {
-      // Public storefront can read only the business document itself.
-      allow get: if publicBusinessDoc();
+      allow get: if resource.data.active == true || ownerOf(businessId);
       allow list: if false;
-      allow create: if signedIn() && isOwner() && request.resource.data.id == businessId;
+      allow create: if isOwner()
+        && request.resource.data.id == businessId;
       allow update: if ownerOf(businessId)
         && request.resource.data.id == resource.data.id;
       allow delete: if false;
 
       match /branches/{branchId} {
-        allow get: if resource.data.active == true || staffOfBranch(businessId, branchId);
-        allow list: if true;
-        allow create, update, delete: if ownerOf(businessId);
+        allow get, list: if publicActive() || staffOfBranch(businessId, branchId);
+        allow create, update, delete: if ownerOf(businessId)
+          && request.resource.data.businessId == businessId;
       }
 
       match /barbers/{barberId} {
-        allow get, list: if resource.data.active == true || staffOfBranch(businessId, resource.data.branchId);
-        allow create, update, delete: if ownerOf(businessId);
-      }
-
-      match /services/{serviceId} {
-        allow get, list: if resource.data.active == true || staffOfBranch(businessId, resource.data.branchId);
-        allow create, update, delete: if ownerOf(businessId);
-      }
-
-      match /products/{productId} {
-        allow get, list: if resource.data.active == true || staffOfBranch(businessId, resource.data.branchId);
-        allow create, update, delete: if staffOfBranch(businessId, request.resource.data.branchId);
-      }
-
-      match /promos/{promoId} {
-        allow get, list: if resource.data.active == true || sameBusiness(businessId);
-        allow create: if ownerOf(businessId);
+        allow get, list: if publicActive() || staffOfBranch(businessId, resource.data.branchId);
+        allow create: if ownerOf(businessId)
+          && request.resource.data.businessId == businessId;
         allow update: if ownerOf(businessId)
-          || (sameBusiness(businessId) && isBarber()
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["usageCount", "updatedAt"]));
+          && request.resource.data.businessId == resource.data.businessId;
         allow delete: if ownerOf(businessId);
       }
 
+      match /services/{serviceId} {
+        allow get, list: if publicActive() || staffOfBranch(businessId, resource.data.branchId);
+        allow create: if ownerOf(businessId)
+          && request.resource.data.businessId == businessId;
+        allow update: if ownerOf(businessId)
+          && request.resource.data.businessId == resource.data.businessId;
+        allow delete: if ownerOf(businessId);
+      }
+
+      match /products/{productId} {
+        allow get, list: if publicActive() || staffOfBranch(businessId, resource.data.branchId);
+        // Product master data remains owner-controlled. Stock operations use stockMovements.
+        allow create: if ownerOf(businessId)
+          && request.resource.data.businessId == businessId
+          && branchBelongs(businessId, request.resource.data.branchId);
+        allow update: if ownerOf(businessId)
+          && request.resource.data.businessId == resource.data.businessId
+          && request.resource.data.branchId == resource.data.branchId;
+        allow delete: if ownerOf(businessId);
+      }
+
+      match /promos/{promoId} {
+        allow get, list: if publicActive() || sameBusiness(businessId);
+        allow create: if ownerOf(businessId)
+          && request.resource.data.businessId == businessId;
+        allow update: if ownerOf(businessId)
+          && request.resource.data.businessId == resource.data.businessId;
+        allow delete: if ownerOf(businessId);
+      }
+
+      // Schedules are public because customers need them to calculate available slots.
+      // Only owners can change schedules.
       match /schedules/{scheduleId} {
         allow get, list: if true;
-        allow create, update, delete: if ownerOf(businessId);
+        allow create: if ownerOf(businessId)
+          && (!('branchId' in request.resource.data)
+              || request.resource.data.branchId == null
+              || branchBelongs(businessId, request.resource.data.branchId));
+        allow update: if ownerOf(businessId);
+        allow delete: if ownerOf(businessId);
       }
 
       match /specialSchedules/{scheduleId} {
@@ -119,26 +183,53 @@ service cloud.firestore {
 
       match /bookings/{bookingId} {
         allow get, list: if sameBusiness(businessId)
-          && (isOwner() || (isBarber() && userData().branchId == resource.data.branchId)
-              || (isCustomer() && resource.data.customerId == request.auth.uid));
+          && (isOwner()
+            || (isBarber() && resource.data.branchId == userData().branchId)
+            || (isCustomer() && resource.data.customerId == request.auth.uid));
 
-        // Online booking: customer owns the booking and may only create PENDING bookings.
+        // Customer-created bookings must point to real business/branch/service/barber records.
         allow create: if isCustomer()
           && sameBusiness(businessId)
           && request.resource.data.businessId == businessId
           && request.resource.data.customerId == request.auth.uid
-          && request.resource.data.status == "PENDING";
+          && request.resource.data.branchId != null
+          && branchBelongs(businessId, request.resource.data.branchId)
+          && serviceExists(businessId, request.resource.data.serviceId)
+          && get(/databases/$(database)/documents/businesses/$(businessId)/services/$(request.resource.data.serviceId)).data.active == true
+          && request.resource.data.status == "PENDING"
+          && request.resource.data.source == "ONLINE"
+          && (
+            !('barberId' in request.resource.data)
+            || request.resource.data.barberId == null
+            || (
+              barberExists(businessId, request.resource.data.barberId)
+              && get(/databases/$(database)/documents/businesses/$(businessId)/barbers/$(request.resource.data.barberId)).data.active == true
+              && get(/databases/$(database)/documents/businesses/$(businessId)/barbers/$(request.resource.data.barberId)).data.branchId == request.resource.data.branchId
+            )
+          );
 
+        // Keep identity and business scope immutable. Customers may only cancel their own booking.
         allow update: if ownerOf(businessId)
-          || (isBarber() && sameBusiness(businessId)
-              && resource.data.branchId == userData().branchId
-              && request.resource.data.businessId == resource.data.businessId
-              && request.resource.data.branchId == resource.data.branchId)
-          || (isCustomer() && sameBusiness(businessId)
-              && resource.data.customerId == request.auth.uid
-              && request.resource.data.customerId == resource.data.customerId
-              && request.resource.data.businessId == resource.data.businessId
-              && request.resource.data.status == "CANCELLED");
+          || (
+            isBarber()
+            && sameBusiness(businessId)
+            && resource.data.branchId == userData().branchId
+            && request.resource.data.businessId == resource.data.businessId
+            && request.resource.data.branchId == resource.data.branchId
+            && request.resource.data.customerId == resource.data.customerId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "barberId", "barberName", "status", "notes", "queueNumber", "updatedAt"
+            ])
+          )
+          || (
+            isCustomer()
+            && sameBusiness(businessId)
+            && resource.data.customerId == request.auth.uid
+            && request.resource.data.customerId == resource.data.customerId
+            && request.resource.data.businessId == resource.data.businessId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"])
+            && request.resource.data.status == "CANCELLED"
+          );
 
         allow delete: if ownerOf(businessId);
       }
@@ -146,8 +237,11 @@ service cloud.firestore {
       match /queueCounters/{counterId} {
         allow get: if sameBusiness(businessId);
         allow list: if false;
+        // Queue numbering is still client-generated in the MVP. These rules constrain scope
+        // and monotonic increments; production-grade numbering should move to a trusted backend.
         allow create: if sameBusiness(businessId)
           && request.resource.data.businessId == businessId
+          && branchBelongs(businessId, request.resource.data.branchId)
           && request.resource.data.nextNumber >= 2;
         allow update: if sameBusiness(businessId)
           && request.resource.data.businessId == resource.data.businessId
@@ -158,94 +252,180 @@ service cloud.firestore {
       }
 
       match /queues/{queueId} {
-        allow get, list: if sameBusiness(businessId)
-          && (isOwner() || (isBarber() && userData().branchId == resource.data.branchId)
-              || (isCustomer() && resource.data.customerId == request.auth.uid));
-        allow create: if (staffOfBranch(businessId, request.resource.data.branchId)
-          || (isCustomer() && sameBusiness(businessId) && request.resource.data.customerId == request.auth.uid))
-          && request.resource.data.businessId == businessId;
+        // Public queue board is an explicit product requirement. It exposes only the fields
+        // currently stored in queue documents; avoid adding sensitive customer data here.
+        allow get, list: if resource.data.status in ["BOOKED", "WAITING", "CALLED", "IN_SERVICE"]
+          || (
+            sameBusiness(businessId)
+            && (isOwner()
+              || (isBarber() && resource.data.branchId == userData().branchId)
+              || (isCustomer() && resource.data.customerId == request.auth.uid))
+          );
+
+        // Staff can create walk-ins. Customers can only create the queue record paired with
+        // their own online booking.
+        allow create: if (
+            staffOfBranch(businessId, request.resource.data.branchId)
+            && request.resource.data.businessId == businessId
+            && branchBelongs(businessId, request.resource.data.branchId)
+            && request.resource.data.status in ["BOOKED", "WAITING"]
+          ) || (
+            isCustomer()
+            && sameBusiness(businessId)
+            && request.resource.data.businessId == businessId
+            && request.resource.data.customerId == request.auth.uid
+            && request.resource.data.source == "ONLINE"
+            && request.resource.data.status == "BOOKED"
+            && ('bookingId' in request.resource.data)
+            && request.resource.data.bookingId != null
+            && get(/databases/$(database)/documents/businesses/$(businessId)/bookings/$(request.resource.data.bookingId)).data.customerId == request.auth.uid
+            && get(/databases/$(database)/documents/businesses/$(businessId)/bookings/$(request.resource.data.bookingId)).data.branchId == request.resource.data.branchId
+          );
+
         allow update: if ownerOf(businessId)
-          || (isBarber() && sameBusiness(businessId)
-              && resource.data.branchId == userData().branchId
-              && request.resource.data.businessId == resource.data.businessId
-              && request.resource.data.branchId == resource.data.branchId
-              && request.resource.data.barberId == userData().barberId
-              && (resource.data.barberId == userData().barberId
-                  || !('barberId' in resource.data)
-                  || resource.data.barberId == null)
-              && (request.resource.data.status != "IN_SERVICE"
-                  || (get(/databases/$(database)/documents/businesses/$(businessId)/attendance/$(userData().barberId + "_" + request.resource.data.date)).data.status == "PRESENT")))
-          || (isCustomer() && sameBusiness(businessId) && resource.data.customerId == request.auth.uid
-              && request.resource.data.customerId == resource.data.customerId
-              && request.resource.data.businessId == resource.data.businessId
-              && request.resource.data.status == "CANCELLED");
+          || (
+            isBarber()
+            && sameBusiness(businessId)
+            && resource.data.branchId == userData().branchId
+            && request.resource.data.businessId == resource.data.businessId
+            && request.resource.data.branchId == resource.data.branchId
+            && request.resource.data.queueNumber == resource.data.queueNumber
+            && request.resource.data.customerId == resource.data.customerId
+            && request.resource.data.serviceId == resource.data.serviceId
+            && request.resource.data.bookingId == resource.data.bookingId
+            && request.resource.data.barberId == userData().barberId
+            && (!('barberId' in resource.data) || resource.data.barberId == userData().barberId || resource.data.barberId == null)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "barberId", "barberName", "status", "calledAt", "startedAt", "completedAt", "checkedInAt", "updatedAt"
+            ])
+            && (
+              request.resource.data.status != "IN_SERVICE"
+              || get(/databases/$(database)/documents/businesses/$(businessId)/attendance/$(userData().barberId + "_" + request.resource.data.date)).data.status == "PRESENT"
+            )
+          )
+          || (
+            isCustomer()
+            && sameBusiness(businessId)
+            && resource.data.customerId == request.auth.uid
+            && request.resource.data.customerId == resource.data.customerId
+            && request.resource.data.businessId == resource.data.businessId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"])
+            && request.resource.data.status == "CANCELLED"
+          );
+
         allow delete: if ownerOf(businessId);
       }
 
       match /attendance/{attendanceId} {
         allow get, list: if sameBusiness(businessId)
-          && (isOwner() || (isBarber() && userData().branchId == resource.data.branchId));
-        allow create: if (ownerOf(businessId)
-          || (isBarber() && sameBusiness(businessId)
-              && request.resource.data.branchId == userData().branchId
-              && request.resource.data.barberId == userData().barberId))
-          && request.resource.data.businessId == businessId;
+          && (isOwner() || (isBarber() && resource.data.branchId == userData().branchId));
+
+        allow create: if (
+            ownerOf(businessId)
+            && request.resource.data.businessId == businessId
+            && branchBelongs(businessId, request.resource.data.branchId)
+            && barberExists(businessId, request.resource.data.barberId)
+          ) || (
+            isBarber()
+            && sameBusiness(businessId)
+            && request.resource.data.businessId == businessId
+            && request.resource.data.branchId == userData().branchId
+            && request.resource.data.barberId == userData().barberId
+          );
+
         allow update: if ownerOf(businessId)
-          || (isBarber() && sameBusiness(businessId)
-              && resource.data.branchId == userData().branchId
-              && resource.data.barberId == userData().barberId
-              && request.resource.data.businessId == resource.data.businessId
-              && request.resource.data.branchId == resource.data.branchId
-              && request.resource.data.barberId == resource.data.barberId);
+          || (
+            isBarber()
+            && sameBusiness(businessId)
+            && resource.data.branchId == userData().branchId
+            && resource.data.barberId == userData().barberId
+            && request.resource.data.businessId == resource.data.businessId
+            && request.resource.data.branchId == resource.data.branchId
+            && request.resource.data.barberId == resource.data.barberId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "status", "checkInAt", "checkOutAt", "checkInMethod", "updatedAt"
+            ])
+          );
         allow delete: if ownerOf(businessId);
       }
 
       match /transactions/{transactionId} {
         allow get, list: if sameBusiness(businessId)
-          && (isOwner() || (isBarber() && userData().branchId == resource.data.branchId)
-              || (isCustomer() && resource.data.customerId == request.auth.uid));
-        allow create, update: if staffOfBranch(businessId, request.resource.data.branchId)
-          && request.resource.data.businessId == businessId;
+          && (isOwner()
+            || (isBarber() && resource.data.branchId == userData().branchId)
+            || (isCustomer() && resource.data.customerId == request.auth.uid));
+
+        allow create: if staffOfBranch(businessId, request.resource.data.branchId)
+          && request.resource.data.businessId == businessId
+          && request.resource.data.createdBy == request.auth.uid
+          && (
+            !isBarber()
+            || !('barberId' in request.resource.data)
+            || request.resource.data.barberId == null
+            || request.resource.data.barberId == userData().barberId
+          );
+
+        allow update: if ownerOf(businessId)
+          || (
+            isBarber()
+            && sameBusiness(businessId)
+            && resource.data.branchId == userData().branchId
+            && request.resource.data.businessId == resource.data.businessId
+            && request.resource.data.branchId == resource.data.branchId
+            && request.resource.data.createdBy == resource.data.createdBy
+            && request.resource.data.barberId == resource.data.barberId
+          );
         allow delete: if ownerOf(businessId);
       }
 
       match /stockMovements/{movementId} {
         allow get, list: if staffOfBranch(businessId, resource.data.branchId);
+
         allow create: if staffOfBranch(businessId, request.resource.data.branchId)
-          && request.resource.data.businessId == businessId;
-        allow update: if ownerOf(businessId);
+          && request.resource.data.businessId == businessId
+          && request.resource.data.createdBy == request.auth.uid
+          && productExists(businessId, request.resource.data.productId)
+          && get(/databases/$(database)/documents/businesses/$(businessId)/products/$(request.resource.data.productId)).data.branchId == request.resource.data.branchId;
+
+        allow update: if ownerOf(businessId)
+          && request.resource.data.businessId == resource.data.businessId
+          && request.resource.data.branchId == resource.data.branchId;
         allow delete: if ownerOf(businessId);
       }
 
       match /promoUsages/{usageId} {
         allow get, list: if sameBusiness(businessId)
-          && (isOwner() || (isBarber() && userData().branchId == resource.data.branchId) || (isCustomer() && resource.data.customerId == request.auth.uid));
-        allow create: if sameBusiness(businessId)
-          && request.resource.data.businessId == businessId
-          && ((isCustomer() && request.resource.data.customerId == request.auth.uid)
-              || (isBarber() && userData().branchId == request.resource.data.branchId)
-              || isOwner());
+          && (isOwner()
+            || (isBarber() && resource.data.branchId == userData().branchId)
+            || (isCustomer() && resource.data.customerId == request.auth.uid));
+
+        allow create: if staffOfBranch(businessId, request.resource.data.branchId)
+          && request.resource.data.businessId == businessId;
+
         allow update: if ownerOf(businessId)
-          || (isBarber() && userData().branchId == resource.data.branchId
-              && request.resource.data.businessId == resource.data.businessId
-              && request.resource.data.branchId == resource.data.branchId);
+          || (
+            isBarber()
+            && sameBusiness(businessId)
+            && resource.data.branchId == userData().branchId
+            && request.resource.data.businessId == resource.data.businessId
+            && request.resource.data.branchId == resource.data.branchId
+          );
         allow delete: if ownerOf(businessId);
       }
 
       match /bookingLocks/{lockId} {
-        allow get, list: if true;
-        allow create: if signedIn()
-          && sameBusiness(businessId)
+        allow get, list: if sameBusiness(businessId);
+        allow create: if sameBusiness(businessId)
           && request.resource.data.businessId == businessId
-          && request.resource.data.ownerUid == request.auth.uid;
+          && request.resource.data.ownerUid == request.auth.uid
+          && branchBelongs(businessId, request.resource.data.branchId);
         allow delete: if staffOfBranch(businessId, resource.data.branchId)
-          || (signedIn() && resource.data.ownerUid == request.auth.uid);
+          || (sameBusiness(businessId) && resource.data.ownerUid == request.auth.uid);
         allow update: if false;
       }
 
       match /settings/{settingId} {
-        allow get: if true;
-        allow list: if false;
+        allow get, list: if ownerOf(businessId);
         allow create, update, delete: if ownerOf(businessId);
       }
     }

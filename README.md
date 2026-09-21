@@ -214,3 +214,52 @@ For the Rp0 MVP, use an unsigned upload preset configured in Cloudinary with res
 - Offline/online status and PWA install prompt are surfaced in the UI when supported by the browser.
 - Mobile-first responsive navigation and safe-area handling are included.
 - Firestore data is still server-backed; offline mode should not be treated as guaranteed offline CRUD until a later data-sync strategy is added.
+
+## Step 15 — Security Rules + Firestore Indexes
+
+Step 15 memperketat authorization Firestore berdasarkan:
+
+- authentication state
+- role (`owner`, `barber`, `customer`)
+- `businessId`
+- `branchId`
+- ownership customer
+- ownership barber
+- immutable identity fields pada booking/queue/attendance/transaction
+- pencegahan self-assignment role privileged
+- pembatasan product master data ke Owner
+- validasi relasi branch/service/barber/product pada operasi penting
+- attendance sebagai prasyarat `IN_SERVICE`
+- public queue hanya melalui query status aktif
+
+### Public queue
+
+Public queue sekarang menggunakan query status aktif melalui `getPublicQueueForDate()` agar Firestore Rules dapat membatasi dokumen yang dibaca public.
+
+### Important MVP security limitation
+
+Nomor antrean masih dibuat oleh client-side Firestore transaction. Rules sudah membatasi scope business/branch dan increment counter harus monoton, tetapi pencegahan manipulasi nomor antrean secara penuh membutuhkan trusted backend (misalnya Cloudflare Worker/Cloud Functions). Jangan menganggap counter client-side sebagai mekanisme anti-fraud penuh.
+
+### Firestore indexes
+
+`firestore/firestore.indexes.json` mencakup query yang digunakan oleh:
+
+- public branch/service/barber listing
+- booking by customer/barber/branch/date
+- queue by branch/date/status/number
+- transactions by branch/barber/date
+- attendance
+- products
+- services
+- barbers
+- users
+- stock movements
+- schedules
+- special schedules
+- promo listing and promo-code validation
+
+Deploy rules + indexes:
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes
+```

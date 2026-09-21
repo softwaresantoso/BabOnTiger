@@ -14,6 +14,17 @@ export async function getQueueForDate(branchId: string, date: string): Promise<Q
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Queue));
 }
 
+export async function getPublicQueueForDate(branchId: string, date: string): Promise<Queue[]> {
+  const snap = await getDocs(query(
+    col("queues"),
+    where("branchId", "==", branchId),
+    where("date", "==", date),
+    where("status", "in", ["BOOKED", "WAITING", "CALLED", "IN_SERVICE"]),
+    orderBy("queueNumber")
+  ));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Queue));
+}
+
 export async function createQueueEntry(args: {
   branchId: string;
   date: string;

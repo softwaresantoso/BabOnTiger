@@ -204,6 +204,7 @@ export interface Transaction {
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
+  createdBy?: string;
   barberId?: string;
   barberName?: string;
   items?: TransactionItem[];
