@@ -41,3 +41,5 @@
 .button-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 .clean-list{padding-left:20px;margin:12px 0;display:grid;gap:12px}
 @media(max-width:760px){.qr-layout{grid-template-columns:1fr}.attendance-toolbar{align-items:stretch;flex-direction:column}.attendance-summary{align-items:flex-start}.success-panel{align-items:flex-start;flex-wrap:wrap}}
+.report-filter .form-grid{align-items:end}.report-filter label{display:flex;flex-direction:column;gap:6px}.row-actions{display:flex;gap:8px;flex-wrap:wrap}.report-stats{margin:16px 0}.report-table{overflow:auto}.report-table .table-row{min-width:760px}.table-head{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}.stock-low{color:#c96b2c}
+@media(max-width:760px){.row-actions{width:100%}.row-actions .btn{flex:1}.report-filter .form-grid{grid-template-columns:1fr}.report-table .table-row{min-width:700px}}

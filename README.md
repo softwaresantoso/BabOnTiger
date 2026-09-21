@@ -179,3 +179,13 @@ This stage turns the barber route into an operational workspace instead of a boo
 ### Step 8 data compatibility
 
 Existing single-service bookings remain readable. New bookings may include `serviceItems[]` while retaining the primary `serviceId`, `serviceName`, `durationMinutes`, and `price` fields for compatibility with existing operational screens.
+
+
+## Step 12 — Reports + Excel
+- Owner report dashboard at `/owner/reports`.
+- Date range and branch filters.
+- Transaction/revenue summary.
+- Barber and branch performance.
+- Product and stock report.
+- Attendance included in report export.
+- Multi-sheet `.xlsx` export using SheetJS (`xlsx`).
