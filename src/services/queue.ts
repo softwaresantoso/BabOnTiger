@@ -1,5 +1,6 @@
 import { collection, doc, getDocs, limit, query, runTransaction, serverTimestamp, where, orderBy } from "firebase/firestore";
 import { db, BUSINESS_ID } from "../lib/firebase";
+import { getTodayAttendance } from "./attendance";
 import type { Barber, Booking, Queue, Service } from "../types";
 
 const col = (name: string) => collection(db, "businesses", BUSINESS_ID, name);
@@ -82,7 +83,13 @@ export async function checkInQueue(queueId: string) {
 export async function callQueue(queueId: string) {
   await transitionQueue(queueId, "CALLED", { calledAt: serverTimestamp() });
 }
-export async function startQueueService(queueId: string) {
+export async function startQueueService(queueId: string, barberContext?: { barberId: string; date: string }) {
+  if (barberContext) {
+    const attendance = await getTodayAttendance(barberContext.barberId, barberContext.date);
+    if (!attendance || attendance.status !== "PRESENT") {
+      throw new Error("Barber harus check-in terlebih dahulu sebelum mulai melayani.");
+    }
+  }
   await transitionQueue(queueId, "IN_SERVICE", { startedAt: serverTimestamp() });
 }
 export async function completeQueue(queueId: string) {

@@ -169,21 +169,34 @@ service cloud.firestore {
               && resource.data.branchId == userData().branchId
               && request.resource.data.businessId == resource.data.businessId
               && request.resource.data.branchId == resource.data.branchId
-              && request.resource.data.barberId == userData().barberId)
+              && request.resource.data.barberId == userData().barberId
+              && (resource.data.barberId == userData().barberId
+                  || !('barberId' in resource.data)
+                  || resource.data.barberId == null)
+              && (request.resource.data.status != "IN_SERVICE"
+                  || (get(/databases/$(database)/documents/businesses/$(businessId)/attendance/$(userData().barberId + "_" + request.resource.data.date)).data.status == "PRESENT")))
           || (isCustomer() && sameBusiness(businessId) && resource.data.customerId == request.auth.uid
               && request.resource.data.customerId == resource.data.customerId
-              && request.resource.data.businessId == resource.data.businessId);
+              && request.resource.data.businessId == resource.data.businessId
+              && request.resource.data.status == "CANCELLED");
         allow delete: if ownerOf(businessId);
       }
 
       match /attendance/{attendanceId} {
         allow get, list: if sameBusiness(businessId)
           && (isOwner() || (isBarber() && userData().branchId == resource.data.branchId));
-        allow create: if staffOfBranch(businessId, request.resource.data.branchId)
+        allow create: if (ownerOf(businessId)
+          || (isBarber() && sameBusiness(businessId)
+              && request.resource.data.branchId == userData().branchId
+              && request.resource.data.barberId == userData().barberId))
           && request.resource.data.businessId == businessId;
-        allow update: if staffOfBranch(businessId, resource.data.branchId)
-          && request.resource.data.businessId == resource.data.businessId
-          && request.resource.data.branchId == resource.data.branchId;
+        allow update: if ownerOf(businessId)
+          || (isBarber() && sameBusiness(businessId)
+              && resource.data.branchId == userData().branchId
+              && resource.data.barberId == userData().barberId
+              && request.resource.data.businessId == resource.data.businessId
+              && request.resource.data.branchId == resource.data.branchId
+              && request.resource.data.barberId == resource.data.barberId);
         allow delete: if ownerOf(businessId);
       }
 

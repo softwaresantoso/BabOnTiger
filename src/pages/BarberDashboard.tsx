@@ -24,6 +24,7 @@ import {
 } from "../services/queue";
 import { checkInBarber, checkOutBarber, getTodayAttendance } from "../services/attendance";
 import { formatDateTime, todayKey } from "../lib/date";
+import { Link } from "react-router-dom";
 import type { Attendance, Booking, Queue } from "../types";
 
 function QueueStatus({ status }: { status: Queue["status"] }) {
@@ -138,6 +139,7 @@ export default function BarberDashboard() {
           <h1>Halo, {profile.name}</h1>
           <p className="muted">Operasional barber untuk {date}.</p>
         </div>
+        {!attendancePresent && attendance?.status !== "COMPLETED" && <Link className="btn secondary" to="/barber/check-in">Scan QR</Link>}
         <button className={`btn ${attendancePresent ? "secondary" : "primary"}`} onClick={handleAttendance} disabled={attendanceBusy || attendance?.status === "COMPLETED"}>
           {attendancePresent ? <LogOut size={16} /> : <LogIn size={16} />}
           {attendanceBusy ? "Memproses..." : attendancePresent ? "Check-out" : attendance?.status === "COMPLETED" ? "Shift Selesai" : "Check-in"}
@@ -151,7 +153,7 @@ export default function BarberDashboard() {
           <div className="eyebrow">ATTENDANCE</div>
           <strong>{attendancePresent ? "Anda sedang aktif" : attendance?.status === "COMPLETED" ? "Shift hari ini sudah selesai" : "Belum check-in"}</strong>
           <p className="muted">
-            {attendance?.checkInAt ? `Masuk ${formatDateTime(attendance.checkInAt, business.timezone)}` : "Check-in manual tersedia pada Step 7. QR check-in menjadi pengembangan berikutnya."}
+            {attendance?.checkInAt ? `Masuk ${formatDateTime(attendance.checkInAt, business.timezone)} • ${attendance.checkInMethod === "QR" ? "Check-in QR" : "Check-in manual"}` : "Check-in melalui QR cabang atau tombol manual."}
             {attendance?.checkOutAt ? ` • Keluar ${formatDateTime(attendance.checkOutAt, business.timezone)}` : ""}
           </p>
         </div>
@@ -205,7 +207,7 @@ export default function BarberDashboard() {
                         <button className="btn small secondary" disabled={busy} onClick={() => runQueueAction(queue.id, () => callQueue(queue.id))}>Panggil</button>
                       )}
                       {mineQueue && queue.status === "CALLED" && (
-                        <button className="btn small primary" disabled={busy} onClick={() => runQueueAction(queue.id, () => startQueueService(queue.id))}>Mulai</button>
+                        <button className="btn small primary" disabled={busy} onClick={() => runQueueAction(queue.id, () => startQueueService(queue.id, { barberId: barberId!, date }))}>Mulai</button>
                       )}
                       {mineQueue && queue.status === "IN_SERVICE" && (
                         <button className="btn small primary" disabled={busy} onClick={() => runQueueAction(queue.id, () => completeQueue(queue.id))}>Selesai</button>

@@ -1,5 +1,5 @@
 import { Link, NavLink, Navigate, Outlet } from "react-router-dom";
-import { CalendarDays, Home, LogOut, Scissors, Users, UserRound, LayoutDashboard, Store, Clock3, Receipt, Package, Tag } from "lucide-react";
+import { CalendarDays, Home, LogOut, Scissors, Users, UserRound, LayoutDashboard, Store, Clock3, Receipt, Package, Tag, QrCode } from "lucide-react";
 import type { ReactNode } from "react";
 import { useAuth } from "./context/AuthContext";
 import { useBusiness } from "./context/BusinessContext";
@@ -57,7 +57,8 @@ const ownerNav = [
   ["/owner/customers", "Pelanggan", Users],
   ["/owner/transactions", "Transaksi", Receipt],
   ["/owner/products", "Produk & Stok", Package],
-  ["/owner/promos", "Promo", Tag]
+  ["/owner/promos", "Promo", Tag],
+  ["/owner/attendance", "Attendance", QrCode]
 ] as const;
 
 export function AdminLayout() {

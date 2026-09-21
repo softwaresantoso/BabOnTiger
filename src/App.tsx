@@ -18,6 +18,8 @@ import Transactions from "./pages/Transactions";
 import OwnerProducts from "./pages/OwnerProducts";
 import OwnerPromos from "./pages/OwnerPromos";
 import CustomerPromos from "./pages/CustomerPromos";
+import OwnerAttendance from "./pages/OwnerAttendance";
+import BarberCheckIn from "./pages/BarberCheckIn";
 
 export default function App() {
   return <Routes>
@@ -48,6 +50,7 @@ export default function App() {
         <Route path="/owner/transactions" element={<Transactions />} />
         <Route path="/owner/products" element={<OwnerProducts />} />
         <Route path="/owner/promos" element={<OwnerPromos />} />
+        <Route path="/owner/attendance" element={<OwnerAttendance />} />
         <Route path="/admin" element={<Navigate to="/owner" replace />} />
         <Route path="/admin/*" element={<Navigate to="/owner" replace />} />
       </Route>
@@ -56,6 +59,7 @@ export default function App() {
     <Route element={<ProtectedRoute roles={["barber"]} />}>
       <Route element={<BarberLayout />}>
         <Route path="/barber" element={<BarberDashboard />} />
+        <Route path="/barber/check-in" element={<BarberCheckIn />} />
         <Route path="/barber/transactions" element={<Transactions barberOnly />} />
       </Route>
     </Route>
