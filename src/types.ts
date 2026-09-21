@@ -141,6 +141,9 @@ export interface Booking {
   source?: "ONLINE" | "WALK_IN";
   status: BookingStatus;
   notes?: string;
+  promoId?: string;
+  promoCode?: string;
+  promoDiscount?: number;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -216,6 +219,7 @@ export interface Transaction {
   paidAt?: unknown;
   createdAt?: unknown;
   updatedAt?: unknown;
+  promoConsumedAt?: unknown;
 }
 
 export interface Product {
@@ -254,6 +258,7 @@ export interface Promo {
   serviceIds?: string[];
   productIds?: string[];
   active: boolean;
+  usageCount?: number;
   createdAt?: unknown;
   updatedAt?: unknown;
 }

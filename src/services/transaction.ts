@@ -41,14 +41,28 @@ export async function createTransaction(args: {
   const bookingRef = args.booking ? doc(businessCollection("bookings"), args.booking.id) : null;
   const normalizedItems = args.items.map(item => ({ ...item, quantity: Number(item.quantity), subtotal: Number(item.unitPrice) * Number(item.quantity) }));
   const subtotal = normalizedItems.reduce((sum, item) => sum + item.subtotal, 0);
-  const discount = Math.max(0, Math.min(Number(args.discount || 0), subtotal));
+  const promoDiscount = Number(args.booking?.promoDiscount || 0);
+  const discount = Math.max(0, Math.min(Number(args.discount || 0) + promoDiscount, subtotal));
   const total = subtotal - discount;
   const paymentStatus: Transaction["status"] = args.status ?? (args.method === "CASH" || args.method === "QRIS" || args.method === "TRANSFER" ? "PAID" : "UNPAID");
 
   await runTransaction(db, async tx => {
     const productRefs = normalizedItems.filter(i => i.type === "PRODUCT").map(i => ({ item: i, ref: doc(products(), i.itemId) }));
+    const promoRef = args.booking?.promoId ? doc(businessCollection("promos"), args.booking.promoId) : null;
+    const usageRef = args.booking?.promoId && (args.customerId ?? args.booking?.customerId) ? doc(businessCollection("promoUsages"), `${args.booking.promoId}_${args.customerId ?? args.booking?.customerId}`) : null;
     const productSnaps = [];
     for (const entry of productRefs) productSnaps.push({ ...entry, snap: await tx.get(entry.ref) });
+    const promoSnap = promoRef && paymentStatus === "PAID" ? await tx.get(promoRef) : null;
+    const usageSnap = usageRef && paymentStatus === "PAID" ? await tx.get(usageRef) : null;
+
+    if (promoSnap?.exists()) {
+      const promo = promoSnap.data() as { active?: boolean; usageLimit?: number; usageCount?: number; customerUsageLimit?: number };
+      const usageCount = Number(promo.usageCount || 0);
+      const customerUsage = usageSnap?.exists() ? Number(usageSnap.data().usageCount || 0) : 0;
+      if (!promo.active) throw new Error("Promo sudah tidak aktif.");
+      if (promo.usageLimit !== undefined && promo.usageLimit > 0 && usageCount >= promo.usageLimit) throw new Error("Kuota promo sudah habis.");
+      if (promo.customerUsageLimit !== undefined && promo.customerUsageLimit > 0 && customerUsage >= promo.customerUsageLimit) throw new Error("Batas penggunaan promo untuk customer ini sudah tercapai.");
+    }
 
     if (args.booking && bookingRef) {
       const bookingSnap = await tx.get(bookingRef);
@@ -99,6 +113,8 @@ export async function createTransaction(args: {
       subtotal,
       discount,
       total,
+      promoId: args.booking?.promoId,
+      promoCode: args.booking?.promoCode,
       method: args.method,
       paymentMethod: args.method,
       status: paymentStatus,
@@ -108,6 +124,12 @@ export async function createTransaction(args: {
       updatedAt: serverTimestamp(),
     };
     tx.set(transactionRef, transaction);
+
+    if (promoRef && usageRef && paymentStatus === "PAID") {
+      const currentUsage = usageSnap?.exists() ? Number(usageSnap.data().usageCount || 0) : 0;
+      tx.set(usageRef, { businessId: BUSINESS_ID, branchId: args.branchId, promoId: args.booking?.promoId, customerId: args.customerId ?? args.booking?.customerId, usageCount: currentUsage + 1, lastUsedAt: serverTimestamp(), lastTransactionId: transactionRef.id }, { merge: true });
+      tx.update(promoRef, { usageCount: Number(promoSnap?.data().usageCount || 0) + 1, updatedAt: serverTimestamp() });
+    }
 
     if (args.booking && bookingRef && paymentStatus === "PAID") {
       tx.update(bookingRef, { status: "COMPLETED", updatedAt: serverTimestamp() });
@@ -121,6 +143,24 @@ export async function markTransactionPaid(transactionId: string, method: NonNull
     const ref = doc(transactions(), transactionId);
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("Transaksi tidak ditemukan.");
-    tx.update(ref, { method, paymentMethod: method, status: "PAID", paymentStatus: "PAID", paidAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    const current = { id: snap.id, ...snap.data() } as Transaction;
+    if (current.status === "PAID") return;
+    const promoRef = current.promoId ? doc(businessCollection("promos"), current.promoId) : null;
+    const usageRef = current.promoId && current.customerId ? doc(businessCollection("promoUsages"), `${current.promoId}_${current.customerId}`) : null;
+    const promoSnap = promoRef ? await tx.get(promoRef) : null;
+    const usageSnap = usageRef ? await tx.get(usageRef) : null;
+    if (promoSnap?.exists()) {
+      const promo = promoSnap.data() as { active?: boolean; usageLimit?: number; usageCount?: number; customerUsageLimit?: number };
+      const usageCount = Number(promo.usageCount || 0);
+      const customerUsage = usageSnap?.exists() ? Number(usageSnap.data().usageCount || 0) : 0;
+      if (!promo.active) throw new Error("Promo sudah tidak aktif.");
+      if (promo.usageLimit !== undefined && promo.usageLimit > 0 && usageCount >= promo.usageLimit) throw new Error("Kuota promo sudah habis.");
+      if (promo.customerUsageLimit !== undefined && promo.customerUsageLimit > 0 && customerUsage >= promo.customerUsageLimit) throw new Error("Batas penggunaan promo untuk customer ini sudah tercapai.");
+      if (promoRef && usageRef) {
+        tx.set(usageRef, { businessId: BUSINESS_ID, promoId: current.promoId, customerId: current.customerId, usageCount: customerUsage + 1, lastUsedAt: serverTimestamp(), lastTransactionId: transactionId }, { merge: true });
+        tx.update(promoRef, { usageCount: usageCount + 1, updatedAt: serverTimestamp() });
+      }
+    }
+    tx.update(ref, { method, paymentMethod: method, status: "PAID", paymentStatus: "PAID", paidAt: serverTimestamp(), promoConsumedAt: current.promoId ? serverTimestamp() : undefined, updatedAt: serverTimestamp() });
   });
 }

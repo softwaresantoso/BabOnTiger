@@ -55,6 +55,7 @@ export async function getAvailableBarbers(barbers: Barber[], service: Service, d
 export async function createBooking(args: {
   customerId: string; customerName: string; customerPhone?: string; branchId: string;
   barber?: Barber; services: Service[]; date: string; startTime: string; notes?: string;
+  promo?: { id: string; code?: string; discount: number };
 }) {
   if (!args.services.length) throw new Error("Pilih minimal satu layanan.");
   const totalDuration = args.services.reduce((sum, s) => sum + s.durationMinutes, 0);
@@ -86,9 +87,11 @@ export async function createBooking(args: {
       customerId: args.customerId, customerName: args.customerName, customerPhone: args.customerPhone,
       barberId: selectedBarber.id, barberName: selectedBarber.name,
       serviceId: args.services[0].id, serviceName: args.services.map(s => s.name).join(" + "),
-      durationMinutes: totalDuration, price: totalPrice,
+      durationMinutes: totalDuration,
       serviceItems: args.services.map(s => ({ serviceId: s.id, serviceName: s.name, durationMinutes: s.durationMinutes, price: s.price })),
       date: args.date, startTime: args.startTime, endTime: end, status: "PENDING", source: "ONLINE", notes: args.notes,
+      promoId: args.promo?.id, promoCode: args.promo?.code, promoDiscount: args.promo?.discount,
+      price: Math.max(0, totalPrice - Number(args.promo?.discount || 0)),
       createdAt: serverTimestamp(), updatedAt: serverTimestamp()
     };
     tx.set(bookingRef, booking);

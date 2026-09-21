@@ -16,6 +16,8 @@ import BranchDetail from "./pages/BranchDetail";
 import CustomerAccount from "./pages/CustomerAccount";
 import Transactions from "./pages/Transactions";
 import OwnerProducts from "./pages/OwnerProducts";
+import OwnerPromos from "./pages/OwnerPromos";
+import CustomerPromos from "./pages/CustomerPromos";
 
 export default function App() {
   return <Routes>
@@ -32,6 +34,7 @@ export default function App() {
       <Route element={<CustomerLayout />}>
         <Route path="/dashboard" element={<CustomerDashboard />} />
         <Route path="/account" element={<CustomerAccount />} />
+        <Route path="/promos" element={<CustomerPromos />} />
       </Route>
     </Route>
 
@@ -44,6 +47,7 @@ export default function App() {
         <Route path="/owner/customers" element={<AdminCustomers />} />
         <Route path="/owner/transactions" element={<Transactions />} />
         <Route path="/owner/products" element={<OwnerProducts />} />
+        <Route path="/owner/promos" element={<OwnerPromos />} />
         <Route path="/admin" element={<Navigate to="/owner" replace />} />
         <Route path="/admin/*" element={<Navigate to="/owner" replace />} />
       </Route>

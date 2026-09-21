@@ -100,7 +100,11 @@ service cloud.firestore {
 
       match /promos/{promoId} {
         allow get, list: if resource.data.active == true || sameBusiness(businessId);
-        allow create, update, delete: if ownerOf(businessId);
+        allow create: if ownerOf(businessId);
+        allow update: if ownerOf(businessId)
+          || (sameBusiness(businessId) && isBarber()
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["usageCount", "updatedAt"]));
+        allow delete: if ownerOf(businessId);
       }
 
       match /schedules/{scheduleId} {
@@ -202,12 +206,17 @@ service cloud.firestore {
 
       match /promoUsages/{usageId} {
         allow get, list: if sameBusiness(businessId)
-          && (isOwner() || (isCustomer() && resource.data.customerId == request.auth.uid));
-        allow create: if isCustomer()
-          && sameBusiness(businessId)
-          && request.resource.data.customerId == request.auth.uid
-          && request.resource.data.businessId == businessId;
-        allow update, delete: if ownerOf(businessId);
+          && (isOwner() || (isBarber() && userData().branchId == resource.data.branchId) || (isCustomer() && resource.data.customerId == request.auth.uid));
+        allow create: if sameBusiness(businessId)
+          && request.resource.data.businessId == businessId
+          && ((isCustomer() && request.resource.data.customerId == request.auth.uid)
+              || (isBarber() && userData().branchId == request.resource.data.branchId)
+              || isOwner());
+        allow update: if ownerOf(businessId)
+          || (isBarber() && userData().branchId == resource.data.branchId
+              && request.resource.data.businessId == resource.data.businessId
+              && request.resource.data.branchId == resource.data.branchId);
+        allow delete: if ownerOf(businessId);
       }
 
       match /bookingLocks/{lockId} {
