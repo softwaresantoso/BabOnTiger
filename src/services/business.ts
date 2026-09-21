@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, orderBy, query, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, orderBy, query, where, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db, BUSINESS_ID } from "../lib/firebase";
 import type { Branch, Business } from "../types";
 
@@ -19,4 +19,8 @@ export async function getActiveBranches(): Promise<Branch[]> {
 export async function getBranch(branchId: string): Promise<Branch | null> {
   const snap = await getDoc(branchDoc(branchId));
   return snap.exists() ? ({ id: snap.id, ...snap.data() } as Branch) : null;
+}
+
+export async function updateBusiness(input: Partial<Omit<Business, "id">>) {
+  await updateDoc(businessDoc(), { ...input, updatedAt: serverTimestamp() });
 }

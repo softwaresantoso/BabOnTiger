@@ -1,5 +1,5 @@
 import { Link, NavLink, Navigate, Outlet } from "react-router-dom";
-import { CalendarDays, Home, LogOut, Scissors, Users, UserRound, LayoutDashboard, Store, Clock3, Receipt, Package, Tag, QrCode, BarChart3 } from "lucide-react";
+import { CalendarDays, Home, LogOut, Scissors, Users, UserRound, LayoutDashboard, Store, Clock3, Receipt, Package, Tag, QrCode, BarChart3, Settings } from "lucide-react";
 import type { ReactNode } from "react";
 import { useAuth } from "./context/AuthContext";
 import { useBusiness } from "./context/BusinessContext";
@@ -7,7 +7,7 @@ import { useBusiness } from "./context/BusinessContext";
 export function Logo() {
   const { business } = useBusiness();
   return <Link to="/" className="brand">
-    <span className="brand-mark">BO</span>
+    {business.logoUrl ? <img className="brand-logo" src={business.logoUrl} alt={business.name}/> : <span className="brand-mark">BO</span>}
     <span><b>{business.name}</b><small>Barber Online</small></span>
   </Link>;
 }
@@ -59,7 +59,8 @@ const ownerNav = [
   ["/owner/products", "Produk & Stok", Package],
   ["/owner/promos", "Promo", Tag],
   ["/owner/attendance", "Attendance", QrCode],
-  ["/owner/reports", "Laporan", BarChart3]
+  ["/owner/reports", "Laporan", BarChart3],
+  ["/owner/settings", "Pengaturan", Settings]
 ] as const;
 
 export function AdminLayout() {

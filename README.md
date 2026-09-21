@@ -189,3 +189,18 @@ Existing single-service bookings remain readable. New bookings may include `serv
 - Product and stock report.
 - Attendance included in report export.
 - Multi-sheet `.xlsx` export using SheetJS (`xlsx`).
+
+## STEP 13 — Cloudinary Media
+
+- Cloudinary is used for business logo, barber photo, service image, product image, and promo image.
+- Browser uploads use only `VITE_CLOUDINARY_CLOUD_NAME` and an unsigned `VITE_CLOUDINARY_UPLOAD_PRESET`.
+- No Cloudinary API secret is included in Vite client variables.
+- Client-side validation accepts JPG, PNG, and WEBP and limits files to 5 MB.
+- Upload folders are tenant-scoped under `barber-online/{businessId}/...`.
+- Owner can configure the business logo and branding at `/owner/settings`.
+- Owner can upload media directly from Service, Barber, Product, and Promo management screens.
+- Public/customer screens display the uploaded logo, service images, barber photos, and promo images where available.
+
+### Cloudinary security boundary
+
+For the Rp0 MVP, use an unsigned upload preset configured in Cloudinary with restrictive upload settings such as allowed formats and a maximum file size. Never add `CLOUDINARY_API_SECRET` or another privileged Cloudinary credential to `.env` variables prefixed with `VITE_`. The browser should only receive the cloud name and unsigned preset name. For a higher-security production setup, replace direct unsigned uploads with a trusted server/worker that signs uploads and validates authorization.

@@ -45,11 +45,11 @@ export default function BranchDetail() {
     </div>
     <section className="section branch-section">
       <div className="section-head"><div><div className="eyebrow">LAYANAN</div><h2>Pilih layanan</h2></div><Scissors /></div>
-      {services.length === 0 ? <Empty>Belum ada layanan aktif di cabang ini.</Empty> : <div className="feature-grid branch-service-grid">{services.map(s => <div className="feature" key={s.id}><h3>{s.name}</h3><p>{s.description || "Layanan barber profesional."}</p><b>{s.durationMinutes} menit • {formatIDR(s.price)}</b></div>)}</div>}
+      {services.length === 0 ? <Empty>Belum ada layanan aktif di cabang ini.</Empty> : <div className="feature-grid branch-service-grid">{services.map(s => <div className="feature" key={s.id}>{s.imageUrl&&<img className="catalog-image" src={s.imageUrl} alt={s.name}/>}<h3>{s.name}</h3><p>{s.description || "Layanan barber profesional."}</p><b>{s.durationMinutes} menit • {formatIDR(s.price)}</b></div>)}</div>}
     </section>
     <section className="section branch-section">
       <div className="section-head"><div><div className="eyebrow">BARBER</div><h2>Tim barber</h2></div><UserRound /></div>
-      {barbers.length === 0 ? <Empty>Belum ada barber aktif di cabang ini.</Empty> : <div className="cards">{barbers.map(b => <div className="mini-card" key={b.id}><div className="avatar">{b.name.charAt(0).toUpperCase()}</div><div className="grow"><b>{b.name}</b><p>{b.bio || "Barber profesional"}</p><span>{b.specialties?.join(" • ") || "Siap melayani"}</span></div></div>)}</div>}
+      {barbers.length === 0 ? <Empty>Belum ada barber aktif di cabang ini.</Empty> : <div className="cards">{barbers.map(b => <div className="mini-card" key={b.id}>{b.photoUrl?<img className="thumb" src={b.photoUrl} alt={b.name}/>:<div className="avatar">{b.name.charAt(0).toUpperCase()}</div>}<div className="grow"><b>{b.name}</b><p>{b.bio || "Barber profesional"}</p><span>{b.specialties?.join(" • ") || "Siap melayani"}</span></div></div>)}</div>}
     </section>
     <section className="panel branch-note"><CalendarDays size={18}/><div><b>Booking fleksibel</b><p className="muted">Kamu dapat memilih beberapa layanan sekaligus, memilih barber tertentu atau barber mana saja, lalu melihat slot yang tersedia.</p></div></section>
   </div>;

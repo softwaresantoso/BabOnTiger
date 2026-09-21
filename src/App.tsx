@@ -21,6 +21,7 @@ import CustomerPromos from "./pages/CustomerPromos";
 import OwnerAttendance from "./pages/OwnerAttendance";
 import BarberCheckIn from "./pages/BarberCheckIn";
 import OwnerReports from "./pages/OwnerReports";
+import OwnerSettings from "./pages/OwnerSettings";
 
 export default function App() {
   return <Routes>
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/owner/promos" element={<OwnerPromos />} />
         <Route path="/owner/attendance" element={<OwnerAttendance />} />
         <Route path="/owner/reports" element={<OwnerReports />} />
+        <Route path="/owner/settings" element={<OwnerSettings />} />
         <Route path="/admin" element={<Navigate to="/owner" replace />} />
         <Route path="/admin/*" element={<Navigate to="/owner" replace />} />
       </Route>
