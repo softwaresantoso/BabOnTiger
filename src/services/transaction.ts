@@ -129,8 +129,13 @@ export async function createTransaction(args: {
     if (promoRef && usageRef && paymentStatus === "PAID") {
       const currentUsage = usageSnap?.exists() ? Number(usageSnap.data().usageCount || 0) : 0;
       tx.set(usageRef, { businessId: BUSINESS_ID, branchId: args.branchId, promoId: args.booking?.promoId, customerId: args.customerId ?? args.booking?.customerId, usageCount: currentUsage + 1, lastUsedAt: serverTimestamp(), lastTransactionId: transactionRef.id }, { merge: true });
-      tx.update(promoRef, { usageCount: Number(promoSnap?.data().usageCount || 0) + 1, updatedAt: serverTimestamp() });
-    }
+      const promoData = promoSnap?.data();
+
+tx.update(promoRef, {
+  usageCount: Number(promoData?.usageCount || 0) + 1,
+  updatedAt: serverTimestamp()
+});
+}
 
     if (args.booking && bookingRef && paymentStatus === "PAID") {
       tx.update(bookingRef, { status: "COMPLETED", updatedAt: serverTimestamp() });

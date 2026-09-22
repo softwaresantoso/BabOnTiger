@@ -263,3 +263,21 @@ Deploy rules + indexes:
 ```bash
 firebase deploy --only firestore:rules,firestore:indexes
 ```
+
+## Step 16 — Testing
+
+Testing assets are documented in `TEST-PLAN.md`.
+
+Static validation can be run with:
+
+```text
+npm run test:static
+```
+
+Production build validation remains:
+
+```text
+npm run build
+```
+
+Step 16 covers authentication, public queue, booking, owner/barber/customer authorization, transactions, inventory, promos, attendance/QR, reports/export, PWA smoke tests, regression checks, and privilege-escalation scenarios.
