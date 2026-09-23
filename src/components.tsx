@@ -42,8 +42,14 @@ export function PublicLayout() {
 }
 
 export function ProtectedRoute({ roles }: { roles?: string[] }) {
-  const { profile, loading } = useAuth();
+  const { profile, loading, error, retry, firebaseUser } = useAuth();
   if (loading) return <Loading />;
+  // Sudah login (ada firebaseUser) tapi gagal ambil dokumen profil dari Firestore
+  // (mis. koneksi putus) — jangan redirect ke /login, itu bikin bingung karena
+  // seolah login gagal padahal auth-nya sukses. Kasih tombol retry.
+  if (firebaseUser && !profile && error) {
+    return <div className="center"><ErrorBox message={`Gagal memuat profil akun: ${error}`} /><button className="btn primary" onClick={retry}>Coba lagi</button></div>;
+  }
   if (!profile) return <Navigate to="/login" replace />;
   if (roles && !roles.includes(profile.role)) return <Navigate to={homeForRole(profile.role)} replace />;
   return <Outlet />;
