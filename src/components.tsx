@@ -57,6 +57,7 @@ export function ProtectedRoute({ roles }: { roles?: string[] }) {
 
 const ownerNav = [
   ["/owner", "Dashboard", LayoutDashboard],
+  ["/owner/branches", "Cabang", Store],
   ["/owner/bookings", "Booking", CalendarDays],
   ["/owner/services", "Layanan", Scissors],
   ["/owner/barbers", "Barber", UserRound],

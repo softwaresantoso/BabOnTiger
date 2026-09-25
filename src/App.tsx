@@ -22,6 +22,7 @@ import OwnerAttendance from "./pages/OwnerAttendance";
 import BarberCheckIn from "./pages/BarberCheckIn";
 import OwnerReports from "./pages/OwnerReports";
 import OwnerSettings from "./pages/OwnerSettings";
+import OwnerBranches from "./pages/OwnerBranches";
 import PWAExperience from "./components/PWAExperience";
 
 export default function App() {
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/owner/attendance" element={<OwnerAttendance />} />
         <Route path="/owner/reports" element={<OwnerReports />} />
         <Route path="/owner/settings" element={<OwnerSettings />} />
+        <Route path="/owner/branches" element={<OwnerBranches />} />
         <Route path="/admin" element={<Navigate to="/owner" replace />} />
         <Route path="/admin/*" element={<Navigate to="/owner" replace />} />
       </Route>
