@@ -10,11 +10,27 @@ import ImageUploader from "../components/ImageUploader";
 const money = (v:number) => new Intl.NumberFormat("id-ID", { style:"currency", currency:"IDR", maximumFractionDigits:0 }).format(v);
 
 export default function OwnerProducts() {
-  const { selectedBranchId, business } = useBusiness();
+  const { business, selectedBranchId } = useBusiness();
   const { profile } = useAuth();
-  const [items,setItems]=useState<Product[]>([]); const [movements,setMovements]=useState<StockMovement[]>([]); const [loading,setLoading]=useState(true); const [error,setError]=useState("");
-  const [name,setName]=useState(""); const [sku,setSku]=useState(""); const [imageUrl,setImageUrl]=useState(""); const [cost,setCost]=useState(0); const [price,setPrice]=useState(0); const [stock,setStock]=useState(0); const [minStock,setMinStock]=useState(0); const [busy,setBusy]=useState<string|null>(null);
-  const [adjustId,setAdjustId]=useState<string|null>(null); const [adjustQty,setAdjustQty]=useState(1); const [adjustType,setAdjustType]=useState<"PURCHASE"|"SALE">("PURCHASE");
+
+  const [items, setItems] = useState<Product[]>([]);
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [name, setName] = useState("");
+  const [sku, setSku] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [cost, setCost] = useState(0);
+  const [price, setPrice] = useState(0);
+  const [stock, setStock] = useState(0);
+  const [minStock, setMinStock] = useState(0);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const [adjustId, setAdjustId] = useState<string | null>(null);
+  const [adjustQty, setAdjustQty] = useState(1);
+  const [adjustType, setAdjustType] =
+    useState<"PURCHASE" | "SALE">("PURCHASE");
 
   async function load(){ if(!selectedBranchId){setLoading(false);return;} setLoading(true); try{ setError(""); const [p,m]=await Promise.all([getProducts(selectedBranchId),getStockMovements(selectedBranchId)]); setItems(p);setMovements(m); }catch(e){setError(e instanceof Error?e.message:"Gagal memuat produk.")}finally{setLoading(false)} }
   useEffect(()=>{load()},[selectedBranchId]);

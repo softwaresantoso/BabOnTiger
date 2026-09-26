@@ -27,7 +27,7 @@ const emptyForm: BranchForm = {
 };
 
 export default function OwnerBranches() {
-  const { business } = useBusiness();
+  const { business, refreshBranches } = useBusiness();;
 
   const [items, setItems] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,7 +118,7 @@ export default function OwnerBranches() {
       };
 
       await saveBranch(payload, editingId ?? undefined);
-
+      await refreshBranches();
       resetForm();
       await load();
     } catch (err) {
@@ -137,6 +137,7 @@ export default function OwnerBranches() {
       setError("");
 
       await toggleBranch(branch.id, !branch.active);
+      await refreshBranches();
       await load();
     } catch (err) {
       setError(

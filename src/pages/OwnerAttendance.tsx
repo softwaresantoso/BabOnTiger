@@ -9,13 +9,21 @@ import type { Branch, Queue } from "../types";
 
 export default function OwnerAttendance() {
   const { business, branches } = useBusiness();
+
   const [branchId, setBranchId] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [queues, setQueues] = useState<Queue[]>([]);
   const [error, setError] = useState("");
 
-  const activeBranches = useMemo(() => branches.filter(branch => branch.active), [branches]);
-  const selectedBranch: Branch | undefined = activeBranches.find(branch => branch.id === branchId) ?? activeBranches[0];
+  const activeBranches = useMemo(
+    () => branches.filter((branch) => branch.active),
+    [branches]
+  );
+
+  const selectedBranch: Branch | undefined =
+    activeBranches.find((branch) => branch.id === branchId) ??
+    activeBranches[0];
+
   const date = todayKey(business.timezone);
 
   useEffect(() => {

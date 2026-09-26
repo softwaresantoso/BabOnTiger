@@ -41,14 +41,13 @@ export async function getActiveBranches(): Promise<Branch[]> {
   const snap = await getDocs(
     query(
       businessCollection("branches"),
-      where("active", "==", true),
-      orderBy("name")
+      where("active", "==", true)
     )
   );
 
-  return snap.docs.map(
-    (d) => ({ id: d.id, ...d.data() } as Branch)
-  );
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as Branch))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getAllBranches(): Promise<Branch[]> {
