@@ -19,22 +19,46 @@ function attendanceRef(barberId: string, date: string) {
   );
 }
 
+/**
+ * Ambil attendance hari ini.
+ *
+ * Jika dokumen belum ada atau dokumen lama tidak dapat dibaca
+ * karena struktur Rules lama, kembalikan null agar halaman
+ * Barber tetap dapat digunakan.
+ */
 export async function getTodayAttendance(
   barberId: string,
   date: string
 ): Promise<Attendance | null> {
-  const snap = await getDoc(attendanceRef(barberId, date));
-
-  if (!snap.exists()) {
+  if (!barberId) {
     return null;
   }
 
-  return {
-    id: snap.id,
-    ...snap.data(),
-  } as Attendance;
+  try {
+    const ref = attendanceRef(barberId, date);
+    const snap = await getDoc(ref);
+
+    if (!snap.exists()) {
+      return null;
+    }
+
+    return {
+      id: snap.id,
+      ...snap.data(),
+    } as Attendance;
+  } catch {
+    // Jangan membuat dashboard/check-in gagal hanya karena
+    // attendance lama belum memiliki field userId.
+    return null;
+  }
 }
 
+/**
+ * Barber check-in.
+ *
+ * Sengaja TIDAK menggunakan transaction + tx.get().
+ * Untuk check-in pertama, dokumen attendance belum ada.
+ */
 export async function checkInBarber(args: {
   barberId: string;
   barberName: string;
@@ -48,18 +72,30 @@ export async function checkInBarber(args: {
     throw new Error("Sesi login barber tidak ditemukan.");
   }
 
-  const ref = attendanceRef(args.barberId, args.date);
-
-  const existing = await getDoc(ref);
-
-  if (existing.exists()) {
-    const current = existing.data();
-
-    if (current.status === "PRESENT") {
-      throw new Error("Anda sudah check-in hari ini.");
-    }
+  if (!user.uid) {
+    throw new Error("UID akun barber tidak ditemukan.");
   }
 
+  if (!args.barberId) {
+    throw new Error("Profil barber tidak ditemukan.");
+  }
+
+  if (!args.branchId) {
+    throw new Error("Cabang barber tidak ditemukan.");
+  }
+
+  const ref = attendanceRef(args.barberId, args.date);
+
+  /*
+   * Jangan membaca dokumen terlebih dahulu.
+   *
+   * setDoc() langsung:
+   * - akan menjadi CREATE jika belum ada
+   * - akan menjadi UPDATE/MERGE jika sudah ada
+   *
+   * Rules akan memastikan barber hanya dapat menulis
+   * attendance miliknya sendiri.
+   */
   const payload: Record<string, unknown> = {
     id: ref.id,
     businessId: BUSINESS_ID,
@@ -74,23 +110,32 @@ export async function checkInBarber(args: {
     updatedAt: serverTimestamp(),
   };
 
-  if (existing.exists()) {
-    const existingCreatedAt = existing.data().createdAt;
+  /*
+   * Untuk dokumen baru, createdAt dibuat.
+   *
+   * Kita tidak perlu membaca dokumen lama.
+   * Jika dokumen lama sudah ada, merge akan mempertahankan
+   * createdAt lama karena field ini tidak dikirim pada update.
+   */
+  payload.createdAt = serverTimestamp();
 
-    if (existingCreatedAt) {
-      payload.createdAt = existingCreatedAt;
-    } else {
-      payload.createdAt = serverTimestamp();
-    }
-  } else {
-    payload.createdAt = serverTimestamp();
-  }
+  await setDoc(ref, payload, {
+    merge: true,
+  });
 
-  await setDoc(ref, payload, { merge: true });
-
-  return getTodayAttendance(args.barberId, args.date);
+  /*
+   * Tidak melakukan getDoc() lagi.
+   * Kita sudah mengetahui state attendance yang baru.
+   */
+  return {
+    id: ref.id,
+    ...payload,
+  } as Attendance;
 }
 
+/**
+ * Barber check-out.
+ */
 export async function checkOutBarber(
   barberId: string,
   date: string
@@ -101,19 +146,34 @@ export async function checkOutBarber(
     throw new Error("Sesi login barber tidak ditemukan.");
   }
 
+  if (!user.uid) {
+    throw new Error("UID akun barber tidak ditemukan.");
+  }
+
+  if (!barberId) {
+    throw new Error("Profil barber tidak ditemukan.");
+  }
+
   const ref = attendanceRef(barberId, date);
 
+  /*
+   * Untuk checkout kita memang perlu membaca dokumen.
+   * Rules baru mengizinkan barber membaca attendance
+   * berdasarkan barberId yang terhubung ke akun mereka.
+   */
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    throw new Error("Belum ada data check-in hari ini.");
+    throw new Error(
+      "Belum ada data check-in hari ini."
+    );
   }
 
   const current = snap.data();
 
-  if (current.userId !== user.uid) {
+  if (current.barberId !== barberId) {
     throw new Error(
-      "Anda tidak memiliki akses ke attendance barber ini."
+      "Attendance bukan milik barber yang sedang login."
     );
   }
 
@@ -127,7 +187,12 @@ export async function checkOutBarber(
     status: "COMPLETED",
     checkOutAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    userId: user.uid,
   });
 
-  return getTodayAttendance(barberId, date);
+  return {
+    id: snap.id,
+    ...current,
+    status: "COMPLETED",
+  } as Attendance;
 }
