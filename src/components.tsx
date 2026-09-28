@@ -16,7 +16,7 @@ export function ErrorBox({ message }: { message: string }) { return <div classNa
 export function Empty({ children }: { children: ReactNode }) { return <div className="empty">{children}</div>; }
 
 function homeForRole(role?: string) {
-  if (role === "owner") return "/owner";
+  if (role === "owner" || role === "admin") return "/owner";
   if (role === "barber") return "/barber";
   return "/dashboard";
 }
@@ -51,7 +51,15 @@ export function ProtectedRoute({ roles }: { roles?: string[] }) {
     return <div className="center"><ErrorBox message={`Gagal memuat profil akun: ${error}`} /><button className="btn primary" onClick={retry}>Coba lagi</button></div>;
   }
   if (!profile) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(profile.role)) return <Navigate to={homeForRole(profile.role)} replace />;
+
+  const effectiveRole = (profile.role as string) === "admin"
+    ? "owner"
+    : profile.role;
+
+    if (roles && !roles.includes(effectiveRole)) {
+    return <Navigate to={homeForRole(effectiveRole)} replace />;
+  }
+
   return <Outlet />;
 }
 

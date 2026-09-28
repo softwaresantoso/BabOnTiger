@@ -56,6 +56,17 @@ export interface UserProfile {
   active?: boolean;
 }
 
+export interface BarberRequest {
+  uid: string;
+  businessId: string;
+  name: string;
+  phone?: string;
+  email: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
 export interface Service {
   id: string;
   businessId?: string;

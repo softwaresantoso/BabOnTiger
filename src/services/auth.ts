@@ -62,3 +62,39 @@ export async function updateCustomerProfile(uid: string, name: string, phone: st
   await updateProfile(auth.currentUser, { displayName: name });
   await updateDoc(doc(db, "users", uid), { name, phone, updatedAt: serverTimestamp() });
 }
+
+export async function signUpBarber(
+  name: string,
+  phone: string,
+  email: string,
+  password: string
+) {
+  const credential = await createUserWithEmailAndPassword(
+    auth,
+    email,
+    password
+  );
+
+  await updateProfile(credential.user, {
+    displayName: name
+  });
+
+  const requestRef = doc(
+    db,
+    "barberRequests",
+    credential.user.uid
+  );
+
+  await setDoc(requestRef, {
+    uid: credential.user.uid,
+    businessId: BUSINESS_ID,
+    name,
+    phone,
+    email,
+    status: "PENDING",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return credential.user;
+}
