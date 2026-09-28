@@ -99,31 +99,74 @@ export async function createTransaction(args: {
       });
     }
 
-    const transaction: Omit<Transaction, "id"> = {
-      businessId: BUSINESS_ID,
-      branchId: args.branchId,
-      bookingId: args.booking?.id,
-      queueId: undefined,
-      customerId: args.customerId ?? args.booking?.customerId,
-      customerName: args.customerName ?? args.booking?.customerName,
-      customerPhone: args.customerPhone ?? args.booking?.customerPhone,
-      createdBy: args.createdBy,
-      barberId: args.barberId ?? args.booking?.barberId,
-      barberName: args.barberName ?? args.booking?.barberName,
-      items: normalizedItems,
-      subtotal,
-      discount,
-      total,
-      promoId: args.booking?.promoId,
-      promoCode: args.booking?.promoCode,
-      method: args.method,
-      paymentMethod: args.method,
-      status: paymentStatus,
-      paymentStatus,
-      paidAt: paymentStatus === "PAID" ? serverTimestamp() : undefined,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
+    const transaction: Record<string, unknown> = {
+  businessId: BUSINESS_ID,
+  branchId: args.branchId,
+  createdBy: args.createdBy,
+  items: normalizedItems,
+  subtotal,
+  discount,
+  total,
+  method: args.method,
+  paymentMethod: args.method,
+  status: paymentStatus,
+  paymentStatus,
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+};
+
+if (args.booking?.id) {
+  transaction.bookingId = args.booking.id;
+}
+
+const customerId =
+  args.customerId ?? args.booking?.customerId;
+
+if (customerId) {
+  transaction.customerId = customerId;
+}
+
+const customerName =
+  args.customerName ?? args.booking?.customerName;
+
+if (customerName) {
+  transaction.customerName = customerName;
+}
+
+const customerPhone =
+  args.customerPhone ?? args.booking?.customerPhone;
+
+if (customerPhone) {
+  transaction.customerPhone = customerPhone;
+}
+
+const barberId =
+  args.barberId ?? args.booking?.barberId;
+
+if (barberId) {
+  transaction.barberId = barberId;
+}
+
+const barberName =
+  args.barberName ?? args.booking?.barberName;
+
+if (barberName) {
+  transaction.barberName = barberName;
+}
+
+if (args.booking?.promoId) {
+  transaction.promoId = args.booking.promoId;
+}
+
+if (args.booking?.promoCode) {
+  transaction.promoCode = args.booking.promoCode;
+}
+
+if (paymentStatus === "PAID") {
+  transaction.paidAt = serverTimestamp();
+}
+
+tx.set(transactionRef, transaction);
     tx.set(transactionRef, transaction);
 
     if (promoRef && usageRef && paymentStatus === "PAID") {

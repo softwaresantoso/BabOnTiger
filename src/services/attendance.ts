@@ -1,4 +1,5 @@
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
+import { auth } from "../lib/firebase";
 import { db, BUSINESS_ID } from "../lib/firebase";
 import type { Attendance } from "../types";
 
@@ -18,6 +19,11 @@ export async function checkInBarber(args: {
   date: string;
   method?: Attendance["checkInMethod"];
 }) {
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error("Sesi login barber tidak ditemukan.");
+  }
   const ref = attendanceRef(args.barberId, args.date);
   await runTransaction(db, async tx => {
     const snap = await tx.get(ref);
@@ -27,6 +33,7 @@ export async function checkInBarber(args: {
     tx.set(ref, {
       id: ref.id,
       businessId: BUSINESS_ID,
+      userId: user.uid,
       branchId: args.branchId,
       barberId: args.barberId,
       barberName: args.barberName,
