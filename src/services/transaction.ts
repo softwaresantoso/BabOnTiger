@@ -1,4 +1,5 @@
 import { collection, doc, getDocs, orderBy, query, runTransaction, serverTimestamp, where } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 import { db, BUSINESS_ID } from "../lib/firebase";
 import { businessCollection } from "./business";
 import type { Booking, Product, Transaction, TransactionItem } from "../types";
@@ -37,6 +38,8 @@ export async function createTransaction(args: {
   createdBy: string;
 }) {
   if (!args.items.length) throw new Error("Tambahkan minimal satu item transaksi.");
+  const actorUid = args.createdBy || getAuth().currentUser?.uid;
+  if (!actorUid) throw new Error("Sesi login tidak ditemukan. Silakan login ulang sebelum membuat transaksi.");
   const transactionRef = doc(transactions());
   const bookingRef = args.booking ? doc(businessCollection("bookings"), args.booking.id) : null;
   const normalizedItems = args.items.map(item => ({ ...item, quantity: Number(item.quantity), subtotal: Number(item.unitPrice) * Number(item.quantity) }));
@@ -94,7 +97,7 @@ export async function createTransaction(args: {
         newStock: product.stock - qty,
         referenceId: transactionRef.id,
         referenceType: "TRANSACTION",
-        createdBy: args.createdBy,
+        createdBy: actorUid,
         createdAt: serverTimestamp(),
       });
     }
@@ -102,7 +105,7 @@ export async function createTransaction(args: {
     const transaction: Record<string, unknown> = {
   businessId: BUSINESS_ID,
   branchId: args.branchId,
-  createdBy: args.createdBy,
+  createdBy: actorUid,
   items: normalizedItems,
   subtotal,
   discount,
@@ -210,6 +213,6 @@ export async function markTransactionPaid(transactionId: string, method: NonNull
         tx.update(promoRef, { usageCount: usageCount + 1, updatedAt: serverTimestamp() });
       }
     }
-    tx.update(ref, { method, paymentMethod: method, status: "PAID", paymentStatus: "PAID", paidAt: serverTimestamp(), promoConsumedAt: current.promoId ? serverTimestamp() : undefined, updatedAt: serverTimestamp() });
+    tx.update(ref, { method, paymentMethod: method, status: "PAID", paymentStatus: "PAID", paidAt: serverTimestamp(), ...(current.promoId ? { promoConsumedAt: serverTimestamp() } : {}), updatedAt: serverTimestamp() });
   });
 }

@@ -85,7 +85,7 @@ export default function Login() {
     try {
       if (mode === "login") {
         const credential = await signIn(email, password);
-        const profile = await getProfile(credential.user);
+        const profile = await getProfile(credential.user.uid);
 
         if (!profile) {
           throw new Error("Profil pengguna belum tersedia.");

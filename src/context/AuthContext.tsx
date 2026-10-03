@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return observeAuth(async (user) => {
       setFirebaseUser(user);
       try {
-        setProfile(user ? await getProfile(user) : null);
+        setProfile(user ? await getProfile(user.uid) : null);
         setError(null);
       } catch (err) {
         // Jangan biarkan profile "menghilang" diam-diam saat fetch gagal

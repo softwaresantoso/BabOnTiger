@@ -7,6 +7,32 @@ export function todayKey(timeZone = "Asia/Jakarta") {
   }).format(new Date());
 }
 
+export function dateKey(
+  value: unknown,
+  timeZone = "Asia/Jakarta"
+) {
+  if (!value) return "";
+
+  const date =
+    typeof value === "object" &&
+    value !== null &&
+    "toDate" in value &&
+    typeof (value as { toDate?: unknown }).toDate === "function"
+      ? (value as { toDate: () => Date }).toDate()
+      : value instanceof Date
+        ? value
+        : new Date(String(value));
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 export function formatDateTime(value: unknown, timeZone = "Asia/Jakarta") {
   if (!value) return "-";
   const date = typeof value === "object" && value !== null && "toDate" in value
