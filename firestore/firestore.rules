@@ -119,23 +119,17 @@ service cloud.firestore {
 
     match /users/{uid} {
 
-      // Customer self-registration only.
-      // Privileged roles cannot be self-assigned.
       allow create: if ownsUser(uid)
         && request.resource.data.uid == uid
         && request.resource.data.role == "customer"
         && request.resource.data.active != false;
 
-      // User can inspect own profile.
-      // Owner/admin can inspect users in the same business.
       allow get, list: if ownsUser(uid)
         || (
           ownerOf(resource.data.businessId)
           && resource.data.businessId == userData().businessId
         );
 
-      // Customer can update own profile fields.
-      // Owner/admin can maintain customer/barber profiles.
       allow update: if (
           ownsUser(uid)
           && resource.data.role == "customer"
@@ -177,7 +171,6 @@ service cloud.firestore {
       allow get: if resource.data.active == true
         || ownerOf(businessId);
 
-      // Public business list is intentionally disabled.
       allow list: if false;
 
       allow create: if isOwner()
@@ -299,7 +292,6 @@ service cloud.firestore {
 
       match /schedules/{scheduleId} {
 
-        // Customers need public access to calculate available slots.
         allow get, list: if true;
 
         allow create: if ownerOf(businessId)
@@ -336,22 +328,21 @@ service cloud.firestore {
 
       match /bookings/{bookingId} {
 
-        // Staff can read bookings.
-        // Customer can read own bookings.
         allow read: if staff(businessId)
           || (
             signedIn()
             && resource.data.customerId == request.auth.uid
           );
 
-        // Customer can create own booking.
         allow create: if signedIn()
           && request.resource.data.businessId == businessId
           && request.resource.data.customerId == request.auth.uid
-          && request.resource.data.status == "PENDING";
+          && request.resource.data.status == "PENDING"
+          && branchBelongs(
+            businessId,
+            request.resource.data.branchId
+          );
 
-        // Staff can update booking.
-        // Customer can only cancel own booking.
         allow update: if staff(businessId)
           || (
             signedIn()
@@ -366,25 +357,104 @@ service cloud.firestore {
 
 
       // =======================================================
+      // QUEUE COUNTERS
+      // =======================================================
+      //
+      // createQueueEntry() menggunakan runTransaction():
+      //
+      // 1. tx.get(counterRef)
+      // 2. tx.set(counterRef, ...)
+      // 3. tx.set(queueRef, ...)
+      //
+      // Karena customer melakukan booking online, customer harus
+      // dapat membaca counter dan membuat/memperbarui counter
+      // untuk branch yang valid.
+      //
+      // =======================================================
+
+      match /queueCounters/{counterId} {
+
+        // Dibutuhkan oleh tx.get(counterRef).
+        // Counter hanya boleh dibaca untuk branch yang valid.
+        allow get: if signedIn()
+          && branchBelongs(
+            businessId,
+            resource.data.branchId
+          );
+
+        allow list: if false;
+
+        // Counter pertama kali dibuat oleh booking online
+        // atau walk-in staff.
+        allow create: if (
+            signedIn()
+            && request.resource.data.businessId == businessId
+            && branchBelongs(
+              businessId,
+              request.resource.data.branchId
+            )
+            && request.resource.data.nextNumber >= 2
+          );
+
+        // Counter berikutnya dinaikkan satu per transaksi queue.
+        allow update: if (
+            signedIn()
+            && request.resource.data.businessId == resource.data.businessId
+            && request.resource.data.branchId == resource.data.branchId
+            && request.resource.data.date == resource.data.date
+            && request.resource.data.nextNumber == resource.data.nextNumber + 1
+            && branchBelongs(
+              businessId,
+              request.resource.data.branchId
+            )
+          );
+
+        allow delete: if ownerOf(businessId);
+      }
+
+
+      // =======================================================
       // QUEUES
       // =======================================================
 
       match /queues/{queueId} {
 
-        // Queue is public.
+        // Queue dapat dibaca publik.
         allow read: if true;
 
-        // Staff can create queue.
-        // Customer can create own queue entry.
-        allow create: if staff(businessId)
-          || (
+        // Staff dapat membuat queue.
+        //
+        // Customer dapat membuat queue miliknya sendiri.
+        // Booking ID divalidasi agar queue tidak dapat dibuat
+        // menggunakan booking milik customer lain.
+        allow create: if (
+            staff(businessId)
+            && request.resource.data.businessId == businessId
+            && branchBelongs(
+              businessId,
+              request.resource.data.branchId
+            )
+          ) || (
             signedIn()
             && request.resource.data.businessId == businessId
             && request.resource.data.customerId == request.auth.uid
+            && request.resource.data.source == "ONLINE"
+            && request.resource.data.status == "BOOKED"
+            && request.resource.data.bookingId != null
+            && get(
+              /databases/$(database)/documents/businesses/$(businessId)/bookings/$(request.resource.data.bookingId)
+            ).data.customerId == request.auth.uid
+            && get(
+              /databases/$(database)/documents/businesses/$(businessId)/bookings/$(request.resource.data.bookingId)
+            ).data.branchId == request.resource.data.branchId
+            && branchBelongs(
+              businessId,
+              request.resource.data.branchId
+            )
           );
 
-        // Staff can update queue.
-        // Customer can update own queue record.
+        // Staff dapat mengubah queue.
+        // Customer hanya dapat mengubah queue miliknya sendiri.
         allow update: if staff(businessId)
           || (
             signedIn()
@@ -412,8 +482,6 @@ service cloud.firestore {
             )
           );
 
-        // Owner can create attendance for any valid branch/barber.
-        // Barber can create only his own attendance.
         allow create: if (
             ownerOf(businessId)
             && request.resource.data.businessId == businessId
@@ -461,9 +529,6 @@ service cloud.firestore {
 
       match /transactions/{transactionId} {
 
-        // Owner can see all transactions in business.
-        // Barber can see transactions in own branch.
-        // Customer can see own transactions.
         allow get, list: if sameBusiness(businessId)
           && (
             isOwner()
@@ -477,8 +542,6 @@ service cloud.firestore {
             )
           );
 
-        // Owner or barber can create transaction.
-        // createdBy must always be the authenticated user.
         allow create: if staffOfBranch(
             businessId,
             request.resource.data.branchId
@@ -492,8 +555,6 @@ service cloud.firestore {
             || request.resource.data.barberId == userData().barberId
           );
 
-        // Owner can update any transaction in business.
-        // Barber can update transaction only in own branch.
         allow update: if ownerOf(businessId)
           || (
             isBarber()
@@ -586,10 +647,8 @@ service cloud.firestore {
 
       match /bookingLocks/{lockId} {
 
-        // Needed to check available booking slots.
         allow read: if true;
 
-        // Authenticated customer/staff can create their own lock.
         allow create: if signedIn()
           && request.resource.data.businessId == businessId
           && request.resource.data.ownerUid == request.auth.uid;
