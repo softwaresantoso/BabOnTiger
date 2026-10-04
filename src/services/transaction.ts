@@ -129,7 +129,14 @@ export async function createTransaction(args: {
     if (promoRef && usageRef && paymentStatus === "PAID") {
       const currentUsage = usageSnap?.exists() ? Number(usageSnap.data().usageCount || 0) : 0;
       tx.set(usageRef, { businessId: BUSINESS_ID, branchId: args.branchId, promoId: args.booking?.promoId, customerId: args.customerId ?? args.booking?.customerId, usageCount: currentUsage + 1, lastUsedAt: serverTimestamp(), lastTransactionId: transactionRef.id }, { merge: true });
-      tx.update(promoRef, { usageCount: Number(promoSnap?.data().usageCount || 0) + 1, updatedAt: serverTimestamp() });
+      const currentPromoUsage = promoSnap?.exists()
+  ? Number(promoSnap.data().usageCount || 0)
+  : 0;
+
+tx.update(promoRef, {
+  usageCount: currentPromoUsage + 1,
+  updatedAt: serverTimestamp(),
+});
     }
 
     if (args.booking && bookingRef && paymentStatus === "PAID") {
@@ -139,29 +146,100 @@ export async function createTransaction(args: {
   return transactionRef.id;
 }
 
-export async function markTransactionPaid(transactionId: string, method: NonNullable<Transaction["method"]>) {
+export async function markTransactionPaid(
+  transactionId: string,
+  method: NonNullable<Transaction["method"]>
+) {
   await runTransaction(db, async tx => {
     const ref = doc(transactions(), transactionId);
     const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error("Transaksi tidak ditemukan.");
+
+    if (!snap.exists()) {
+      throw new Error("Transaksi tidak ditemukan.");
+    }
+
     const current = { id: snap.id, ...snap.data() } as Transaction;
+
     if (current.status === "PAID") return;
-    const promoRef = current.promoId ? doc(businessCollection("promos"), current.promoId) : null;
-    const usageRef = current.promoId && current.customerId ? doc(businessCollection("promoUsages"), `${current.promoId}_${current.customerId}`) : null;
+
+    const promoRef = current.promoId
+      ? doc(businessCollection("promos"), current.promoId)
+      : null;
+
+    const usageRef =
+      current.promoId && current.customerId
+        ? doc(
+            businessCollection("promoUsages"),
+            `${current.promoId}_${current.customerId}`
+          )
+        : null;
+
     const promoSnap = promoRef ? await tx.get(promoRef) : null;
     const usageSnap = usageRef ? await tx.get(usageRef) : null;
+
     if (promoSnap?.exists()) {
-      const promo = promoSnap.data() as { active?: boolean; usageLimit?: number; usageCount?: number; customerUsageLimit?: number };
+      const promo = promoSnap.data() as {
+        active?: boolean;
+        usageLimit?: number;
+        usageCount?: number;
+        customerUsageLimit?: number;
+      };
+
       const usageCount = Number(promo.usageCount || 0);
-      const customerUsage = usageSnap?.exists() ? Number(usageSnap.data().usageCount || 0) : 0;
-      if (!promo.active) throw new Error("Promo sudah tidak aktif.");
-      if (promo.usageLimit !== undefined && promo.usageLimit > 0 && usageCount >= promo.usageLimit) throw new Error("Kuota promo sudah habis.");
-      if (promo.customerUsageLimit !== undefined && promo.customerUsageLimit > 0 && customerUsage >= promo.customerUsageLimit) throw new Error("Batas penggunaan promo untuk customer ini sudah tercapai.");
+      const customerUsage = usageSnap?.exists()
+        ? Number(usageSnap.data().usageCount || 0)
+        : 0;
+
+      if (!promo.active) {
+        throw new Error("Promo sudah tidak aktif.");
+      }
+
+      if (
+        promo.usageLimit !== undefined &&
+        promo.usageLimit > 0 &&
+        usageCount >= promo.usageLimit
+      ) {
+        throw new Error("Kuota promo sudah habis.");
+      }
+
+      if (
+        promo.customerUsageLimit !== undefined &&
+        promo.customerUsageLimit > 0 &&
+        customerUsage >= promo.customerUsageLimit
+      ) {
+        throw new Error(
+          "Batas penggunaan promo untuk customer ini sudah tercapai."
+        );
+      }
+
       if (promoRef && usageRef) {
-        tx.set(usageRef, { businessId: BUSINESS_ID, promoId: current.promoId, customerId: current.customerId, usageCount: customerUsage + 1, lastUsedAt: serverTimestamp(), lastTransactionId: transactionId }, { merge: true });
-        tx.update(promoRef, { usageCount: usageCount + 1, updatedAt: serverTimestamp() });
+        tx.set(
+          usageRef,
+          {
+            businessId: BUSINESS_ID,
+            promoId: current.promoId,
+            customerId: current.customerId,
+            usageCount: customerUsage + 1,
+            lastUsedAt: serverTimestamp(),
+            lastTransactionId: transactionId,
+          },
+          { merge: true }
+        );
+
+        tx.update(promoRef, {
+          usageCount: usageCount + 1,
+          updatedAt: serverTimestamp(),
+        });
       }
     }
-    tx.update(ref, { method, paymentMethod: method, status: "PAID", paymentStatus: "PAID", paidAt: serverTimestamp(), promoConsumedAt: current.promoId ? serverTimestamp() : undefined, updatedAt: serverTimestamp() });
+
+    tx.update(ref, {
+      method,
+      paymentMethod: method,
+      status: "PAID",
+      paymentStatus: "PAID",
+      paidAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
   });
 }

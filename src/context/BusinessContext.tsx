@@ -11,6 +11,7 @@ interface BusinessContextValue {
   setSelectedBranchId: (branchId: string) => void;
   loading: boolean;
   error: string;
+  refreshBranches: () => Promise<void>;
 }
 
 const fallbackBusiness: Business = {
@@ -55,9 +56,52 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     [branches, selectedBranchId]
   );
 
-  return <BusinessContext.Provider value={{ business, branches, selectedBranch, selectedBranchId, setSelectedBranchId, loading, error }}>
+async function refreshBranches() {
+  try {
+    setError("");
+
+    const bs = await getActiveBranches();
+    setBranches(bs);
+
+    const saved = localStorage.getItem(STORAGE_KEY);
+
+    const next =
+      saved && bs.some((branch) => branch.id === saved)
+        ? saved
+        : bs[0]?.id ?? null;
+
+    setSelectedBranchIdState(next);
+
+    if (next) {
+      localStorage.setItem(STORAGE_KEY, next);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch (err) {
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Gagal memuat data cabang."
+    );
+  }
+}
+
+  return (
+  <BusinessContext.Provider
+    value={{
+      business,
+      branches,
+      selectedBranch,
+      selectedBranchId,
+      setSelectedBranchId,
+      refreshBranches,
+      loading,
+      error,
+    }}
+  >
     {children}
-  </BusinessContext.Provider>;
+  </BusinessContext.Provider>
+);
 }
 
 export function useBusiness() {

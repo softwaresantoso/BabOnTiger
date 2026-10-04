@@ -18,7 +18,20 @@ export default function CustomerAccount() {
 
   async function save(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(""); setMessage("");
-    try { await updateCustomerProfile(profile.uid, name.trim(), phone.trim()); setMessage("Profil berhasil diperbarui."); }
+    if (!profile) {
+  setError("Profil pengguna tidak tersedia.");
+  setBusy(false);
+  return;
+}
+
+try {
+  await updateCustomerProfile(
+    profile.uid,
+    name.trim(),
+    phone.trim()
+  );
+  setMessage("Profil berhasil diperbarui.");
+}
     catch (e) { setError(e instanceof Error ? e.message : "Gagal memperbarui profil."); }
     finally { setBusy(false); }
   }

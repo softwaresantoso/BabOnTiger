@@ -87,6 +87,21 @@ export interface Barber {
   updatedAt?: unknown;
 }
 
+export interface BarberRequest {
+  id: string;
+  uid: string;
+  businessId: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  branchId?: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  barberId?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  rejectedReason?: string;
+}
+
 export interface Schedule {
   id: string;
   barberId: string;

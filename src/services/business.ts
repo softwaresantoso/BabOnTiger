@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, where, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db, BUSINESS_ID } from "../lib/firebase";
 import type { Branch, Business } from "../types";
 
