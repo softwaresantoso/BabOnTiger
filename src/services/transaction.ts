@@ -1,5 +1,4 @@
 import { collection, doc, getDocs, orderBy, query, runTransaction, serverTimestamp, where } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
 import { db, BUSINESS_ID } from "../lib/firebase";
 import { businessCollection } from "./business";
 import type { Booking, Product, Transaction, TransactionItem } from "../types";
@@ -38,8 +37,6 @@ export async function createTransaction(args: {
   createdBy: string;
 }) {
   if (!args.items.length) throw new Error("Tambahkan minimal satu item transaksi.");
-  const actorUid = args.createdBy || getAuth().currentUser?.uid;
-  if (!actorUid) throw new Error("Sesi login tidak ditemukan. Silakan login ulang sebelum membuat transaksi.");
   const transactionRef = doc(transactions());
   const bookingRef = args.booking ? doc(businessCollection("bookings"), args.booking.id) : null;
   const normalizedItems = args.items.map(item => ({ ...item, quantity: Number(item.quantity), subtotal: Number(item.unitPrice) * Number(item.quantity) }));
@@ -97,91 +94,43 @@ export async function createTransaction(args: {
         newStock: product.stock - qty,
         referenceId: transactionRef.id,
         referenceType: "TRANSACTION",
-        createdBy: actorUid,
+        createdBy: args.createdBy,
         createdAt: serverTimestamp(),
       });
     }
 
-    const transaction: Record<string, unknown> = {
-  businessId: BUSINESS_ID,
-  branchId: args.branchId,
-  createdBy: actorUid,
-  items: normalizedItems,
-  subtotal,
-  discount,
-  total,
-  method: args.method,
-  paymentMethod: args.method,
-  status: paymentStatus,
-  paymentStatus,
-  createdAt: serverTimestamp(),
-  updatedAt: serverTimestamp(),
-};
-
-if (args.booking?.id) {
-  transaction.bookingId = args.booking.id;
-}
-
-const customerId =
-  args.customerId ?? args.booking?.customerId;
-
-if (customerId) {
-  transaction.customerId = customerId;
-}
-
-const customerName =
-  args.customerName ?? args.booking?.customerName;
-
-if (customerName) {
-  transaction.customerName = customerName;
-}
-
-const customerPhone =
-  args.customerPhone ?? args.booking?.customerPhone;
-
-if (customerPhone) {
-  transaction.customerPhone = customerPhone;
-}
-
-const barberId =
-  args.barberId ?? args.booking?.barberId;
-
-if (barberId) {
-  transaction.barberId = barberId;
-}
-
-const barberName =
-  args.barberName ?? args.booking?.barberName;
-
-if (barberName) {
-  transaction.barberName = barberName;
-}
-
-if (args.booking?.promoId) {
-  transaction.promoId = args.booking.promoId;
-}
-
-if (args.booking?.promoCode) {
-  transaction.promoCode = args.booking.promoCode;
-}
-
-if (paymentStatus === "PAID") {
-  transaction.paidAt = serverTimestamp();
-}
-
-tx.set(transactionRef, transaction);
+    const transaction: Omit<Transaction, "id"> = {
+      businessId: BUSINESS_ID,
+      branchId: args.branchId,
+      bookingId: args.booking?.id,
+      queueId: undefined,
+      customerId: args.customerId ?? args.booking?.customerId,
+      customerName: args.customerName ?? args.booking?.customerName,
+      customerPhone: args.customerPhone ?? args.booking?.customerPhone,
+      createdBy: args.createdBy,
+      barberId: args.barberId ?? args.booking?.barberId,
+      barberName: args.barberName ?? args.booking?.barberName,
+      items: normalizedItems,
+      subtotal,
+      discount,
+      total,
+      promoId: args.booking?.promoId,
+      promoCode: args.booking?.promoCode,
+      method: args.method,
+      paymentMethod: args.method,
+      status: paymentStatus,
+      paymentStatus,
+      paidAt: paymentStatus === "PAID" ? serverTimestamp() : undefined,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
     tx.set(transactionRef, transaction);
 
     if (promoRef && usageRef && paymentStatus === "PAID") {
       const currentUsage = usageSnap?.exists() ? Number(usageSnap.data().usageCount || 0) : 0;
       tx.set(usageRef, { businessId: BUSINESS_ID, branchId: args.branchId, promoId: args.booking?.promoId, customerId: args.customerId ?? args.booking?.customerId, usageCount: currentUsage + 1, lastUsedAt: serverTimestamp(), lastTransactionId: transactionRef.id }, { merge: true });
-      const promoData = promoSnap?.data();
-
-tx.update(promoRef, {
-  usageCount: Number(promoData?.usageCount || 0) + 1,
-  updatedAt: serverTimestamp()
-});
-}
+      tx.update(promoRef, { usageCount: Number(promoSnap?.data().usageCount || 0) + 1, updatedAt: serverTimestamp() });
+    }
 
     if (args.booking && bookingRef && paymentStatus === "PAID") {
       tx.update(bookingRef, { status: "COMPLETED", updatedAt: serverTimestamp() });
@@ -213,6 +162,6 @@ export async function markTransactionPaid(transactionId: string, method: NonNull
         tx.update(promoRef, { usageCount: usageCount + 1, updatedAt: serverTimestamp() });
       }
     }
-    tx.update(ref, { method, paymentMethod: method, status: "PAID", paymentStatus: "PAID", paidAt: serverTimestamp(), ...(current.promoId ? { promoConsumedAt: serverTimestamp() } : {}), updatedAt: serverTimestamp() });
+    tx.update(ref, { method, paymentMethod: method, status: "PAID", paymentStatus: "PAID", paidAt: serverTimestamp(), promoConsumedAt: current.promoId ? serverTimestamp() : undefined, updatedAt: serverTimestamp() });
   });
 }

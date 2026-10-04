@@ -9,21 +9,13 @@ import type { Branch, Queue } from "../types";
 
 export default function OwnerAttendance() {
   const { business, branches } = useBusiness();
-
   const [branchId, setBranchId] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [queues, setQueues] = useState<Queue[]>([]);
   const [error, setError] = useState("");
 
-  const activeBranches = useMemo(
-    () => branches.filter((branch) => branch.active),
-    [branches]
-  );
-
-  const selectedBranch: Branch | undefined =
-    activeBranches.find((branch) => branch.id === branchId) ??
-    activeBranches[0];
-
+  const activeBranches = useMemo(() => branches.filter(branch => branch.active), [branches]);
+  const selectedBranch: Branch | undefined = activeBranches.find(branch => branch.id === branchId) ?? activeBranches[0];
   const date = todayKey(business.timezone);
 
   useEffect(() => {
@@ -59,30 +51,7 @@ export default function OwnerAttendance() {
     anchor.click();
   }
 
-  if (!selectedBranch) {
-  return (
-    <div>
-      <div className="section-head">
-        <div>
-          <div className="eyebrow">ATTENDANCE + QR</div>
-          <h1>Check-in Barber</h1>
-          <p className="muted">
-            QR check-in dibuat berdasarkan cabang aktif.
-          </p>
-        </div>
-        <QrCode size={30} />
-      </div>
-
-      <div className="panel">
-        <h2>Belum ada cabang aktif</h2>
-        <p className="muted">
-          Tambahkan minimal satu cabang aktif terlebih dahulu agar
-          QR check-in barber dan data attendance dapat digunakan.
-        </p>
-      </div>
-    </div>
-  );
-}
+  if (!selectedBranch) return <Loading />;
 
   return (
     <div>

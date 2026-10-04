@@ -55,11 +55,11 @@ export default function App() {
         <Route path="/owner/customers" element={<AdminCustomers />} />
         <Route path="/owner/transactions" element={<Transactions />} />
         <Route path="/owner/products" element={<OwnerProducts />} />
+        <Route path="/owner/branches" element={<OwnerBranches />} />
         <Route path="/owner/promos" element={<OwnerPromos />} />
         <Route path="/owner/attendance" element={<OwnerAttendance />} />
         <Route path="/owner/reports" element={<OwnerReports />} />
         <Route path="/owner/settings" element={<OwnerSettings />} />
-        <Route path="/owner/branches" element={<OwnerBranches />} />
         <Route path="/admin" element={<Navigate to="/owner" replace />} />
         <Route path="/admin/*" element={<Navigate to="/owner" replace />} />
       </Route>

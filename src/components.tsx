@@ -1,7 +1,8 @@
 import { Link, NavLink, Navigate, Outlet } from "react-router-dom";
-import { CalendarDays, Home, LogOut, Scissors, Users, UserRound, LayoutDashboard, Store, Clock3, Receipt, Package, Tag, QrCode, BarChart3, Settings } from "lucide-react";
+import { CalendarDays, Home, LogOut, Scissors, Users, UserRound, LayoutDashboard, Store, Clock3, Receipt, Package, Tag, QrCode, BarChart3, Settings, Menu, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useAuth } from "./context/AuthContext";
+import { useState } from "react";
 import { useBusiness } from "./context/BusinessContext";
 
 export function Logo() {
@@ -16,7 +17,7 @@ export function ErrorBox({ message }: { message: string }) { return <div classNa
 export function Empty({ children }: { children: ReactNode }) { return <div className="empty">{children}</div>; }
 
 function homeForRole(role?: string) {
-  if (role === "owner" || role === "admin") return "/owner";
+  if (role === "owner") return "/owner";
   if (role === "barber") return "/barber";
   return "/dashboard";
 }
@@ -42,55 +43,84 @@ export function PublicLayout() {
 }
 
 export function ProtectedRoute({ roles }: { roles?: string[] }) {
-  const { profile, loading, error, retry, firebaseUser } = useAuth();
+  const { profile, loading } = useAuth();
   if (loading) return <Loading />;
-  // Sudah login (ada firebaseUser) tapi gagal ambil dokumen profil dari Firestore
-  // (mis. koneksi putus) — jangan redirect ke /login, itu bikin bingung karena
-  // seolah login gagal padahal auth-nya sukses. Kasih tombol retry.
-  if (firebaseUser && !profile && error) {
-    return <div className="center"><ErrorBox message={`Gagal memuat profil akun: ${error}`} /><button className="btn primary" onClick={retry}>Coba lagi</button></div>;
-  }
   if (!profile) return <Navigate to="/login" replace />;
-
-  const effectiveRole = (profile.role as string) === "admin"
-    ? "owner"
-    : profile.role;
-
-    if (roles && !roles.includes(effectiveRole)) {
-    return <Navigate to={homeForRole(effectiveRole)} replace />;
-  }
-
+  if (roles && !roles.includes(profile.role)) return <Navigate to={homeForRole(profile.role)} replace />;
   return <Outlet />;
 }
 
 const ownerNav = [
   ["/owner", "Dashboard", LayoutDashboard],
-  ["/owner/branches", "Cabang", Store],
+  ["/owner/transactions", "Transaksi", Receipt],
   ["/owner/bookings", "Booking", CalendarDays],
   ["/owner/services", "Layanan", Scissors],
-  ["/owner/barbers", "Barber", UserRound],
-  ["/owner/customers", "Pelanggan", Users],
-  ["/owner/transactions", "Transaksi", Receipt],
   ["/owner/products", "Produk & Stok", Package],
   ["/owner/promos", "Promo", Tag],
+  ["/owner/branches", "Cabang", Store],
   ["/owner/attendance", "Attendance", QrCode],
+  ["/owner/barbers", "Barber", UserRound],
+  ["/owner/customers", "Pelanggan", Users],
   ["/owner/reports", "Laporan", BarChart3],
   ["/owner/settings", "Pengaturan", Settings]
 ] as const;
 
 export function AdminLayout() {
   const { profile, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  function closeMenu() {
+    setMenuOpen(false);
+  }
+
   return <div className="admin-shell">
-    <aside className="sidebar">
+    <header className="owner-mobile-header">
+      <button
+        className="owner-menu-button"
+        type="button"
+        aria-label={menuOpen ? "Tutup menu" : "Buka menu"}
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen(value => !value)}
+      >
+        {menuOpen ? <X size={22} /> : <Menu size={22} />}
+      </button>
       <Logo />
+      <div className="owner-mobile-user">{profile?.name?.charAt(0).toUpperCase() || "O"}</div>
+    </header>
+
+    {menuOpen && <button className="sidebar-backdrop" type="button" aria-label="Tutup menu" onClick={closeMenu} />}
+
+    <aside className={`sidebar owner-sidebar${menuOpen ? " open" : ""}`}>
+      <div className="sidebar-head">
+        <Logo />
+        <button className="sidebar-close" type="button" aria-label="Tutup menu" onClick={closeMenu}>
+          <X size={20} />
+        </button>
+      </div>
       <div className="side-label">OWNER</div>
-      <nav>{ownerNav.map(([to, label, Icon]) => <NavLink key={to} to={to} end={to === "/owner"}><Icon size={18}/>{label}</NavLink>)}</nav>
+      <nav>
+        {ownerNav.map(([to, label, Icon]) => (
+          <NavLink key={to} to={to} end={to === "/owner"} onClick={closeMenu}>
+            <Icon size={18}/><span>{label}</span>
+          </NavLink>
+        ))}
+      </nav>
       <div className="sidebar-bottom">
         <div className="muted">{profile?.name}</div>
         <button className="btn ghost full" onClick={logout}><LogOut size={16}/> Keluar</button>
       </div>
     </aside>
-    <main className="admin-main"><Outlet /></main>
+
+    <main className="admin-main">
+      <div className="owner-page-bar">
+        <div>
+          <div className="eyebrow">OWNER AREA</div>
+          <span>Operasional Barber Online</span>
+        </div>
+        <div className="owner-page-user">{profile?.name || "Owner"}</div>
+      </div>
+      <Outlet />
+    </main>
   </div>;
 }
 

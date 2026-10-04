@@ -5,7 +5,6 @@ import {
   Clock3,
   LogIn,
   LogOut,
-  Package,
   Phone,
   Scissors,
   UserRound,
@@ -24,32 +23,12 @@ import {
   startQueueService,
 } from "../services/queue";
 import { checkInBarber, checkOutBarber, getTodayAttendance } from "../services/attendance";
-import { getTransactions } from "../services/transaction";
-import { formatIDR } from "../services/promo";
-import { dateKey, formatDateTime, todayKey } from "../lib/date";
+import { formatDateTime, todayKey } from "../lib/date";
 import { Link } from "react-router-dom";
-import type { Attendance, Booking, Queue, Transaction, } from "../types";
+import type { Attendance, Booking, Queue } from "../types";
 
 function QueueStatus({ status }: { status: Queue["status"] }) {
   return <span className={`status ${status}`}>{status.replaceAll("_", " ")}</span>;
-}
-
-function Stat({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof CalendarDays;
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="stat">
-      <Icon size={20} />
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
 }
 
 export default function BarberDashboard() {
@@ -65,7 +44,6 @@ export default function BarberDashboard() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [attendanceBusy, setAttendanceBusy] = useState(false);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filter, setFilter] = useState<"ALL" | "MINE">("ALL");
   const [error, setError] = useState("");
 
@@ -76,25 +54,14 @@ export default function BarberDashboard() {
     }
     try {
       setError("");
-      const [
-        nextQueues,
-        nextBookings,
-        nextAttendance,
-        nextTransactions,
-      ] = await Promise.all([
+      const [nextQueues, nextBookings, nextAttendance] = await Promise.all([
         getQueueForDate(branchId, date),
         getBookingsForDate(barberId, date),
         getTodayAttendance(barberId, date),
-        getTransactions(branchId, barberId),
       ]);
       setQueues(nextQueues);
       setBookings(nextBookings);
       setAttendance(nextAttendance);
-      setTransactions(
-  nextTransactions.filter(
-    (transaction: Transaction) => transaction.status === "PAID"
-  )
-);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat workspace barber.");
     } finally {
@@ -114,70 +81,6 @@ export default function BarberDashboard() {
   );
 
   const mine = useMemo(() => queues.filter(q => q.barberId === barberId), [barberId, queues]);
-const todaySummary = useMemo(() => {
-  const todayTransactions = transactions.filter((transaction) => {
-    if (transaction.status !== "PAID") {
-      return false;
-    }
-
-    if (transaction.barberId !== barberId) {
-      return false;
-    }
-
-    return (
-      dateKey(transaction.createdAt, business.timezone) === date
-    );
-  });
-
-  const customers = new Set(
-    todayTransactions
-      .map((transaction) => transaction.customerId)
-      .filter(Boolean)
-  );
-
-  const servicesSold = todayTransactions.reduce(
-    (total, transaction) =>
-      total +
-      (transaction.items ?? [])
-        .filter((item) => item.type === "SERVICE")
-        .reduce(
-          (sum, item) => sum + Number(item.quantity || 0),
-          0
-        ),
-    0
-  );
-
-  const productsSold = todayTransactions.reduce(
-    (total, transaction) =>
-      total +
-      (transaction.items ?? [])
-        .filter((item) => item.type === "PRODUCT")
-        .reduce(
-          (sum, item) => sum + Number(item.quantity || 0),
-          0
-        ),
-    0
-  );
-
-  const revenue = todayTransactions.reduce(
-    (total, transaction) =>
-      total + Number(transaction.total || 0),
-    0
-  );
-
-  return {
-    transactions: todayTransactions.length,
-    customers: customers.size,
-    servicesSold,
-    productsSold,
-    revenue,
-  };
-}, [
-  transactions,
-  barberId,
-  business.timezone,
-  date,
-]);
   const waiting = queues.filter(q => q.status === "WAITING" || q.status === "BOOKED").length;
   const inService = queues.filter(q => q.status === "IN_SERVICE").length;
   const completed = queues.filter(q => q.status === "COMPLETED").length;
@@ -331,48 +234,7 @@ const todaySummary = useMemo(() => {
             <div><span>Total selesai cabang</span><strong>{completed}</strong></div>
           </div>
           <div className="alert info">
-            <section className="panel barber-summary-panel">
-  <div className="panel-title">
-    <div>
-      <div className="eyebrow">TODAY SUMMARY</div>
-      <h2>Ringkasan Hari Ini</h2>
-    </div>
-    <span className="muted">
-      {date}
-    </span>
-  </div>
-
-  <div className="stat-grid">
-    <Stat
-      icon={UserRound}
-      label="Pelanggan Dilayani"
-      value={todaySummary.customers}
-    />
-
-    <Stat
-      icon={CheckCircle2}
-      label="Transaksi Lunas"
-      value={todaySummary.transactions}
-    />
-
-    <Stat
-      icon={Scissors}
-      label="Layanan Terjual"
-      value={todaySummary.servicesSold}
-    />
-
-    <Stat
-      icon={Package}
-      label="Produk Terjual"
-      value={todaySummary.productsSold}
-    />
-  </div>
-
-  <div className="summary-revenue">
-    <span>Pendapatan Barber Hari Ini</span>
-    <strong>{formatIDR(todaySummary.revenue)}</strong>
-  </div>
-</section>
+            Pendapatan barber akan ditampilkan setelah modul transaksi dan laporan pada Step 9–12.
           </div>
         </aside>
       </div>

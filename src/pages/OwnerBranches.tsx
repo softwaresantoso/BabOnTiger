@@ -1,404 +1,150 @@
-import { useEffect, useState } from "react";
-import { Loading } from "../components";
+import { useCallback, useEffect, useState } from "react";
+import { Building2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Empty, ErrorBox } from "../components";
 import { useBusiness } from "../context/BusinessContext";
-import {
-  getAllBranches,
-  saveBranch,
-  toggleBranch,
-} from "../services/business";
+import { createBranch, deleteBranch, getAllBranches, updateBranch } from "../services/business";
 import type { Branch } from "../types";
 
-type BranchForm = {
-  name: string;
-  code: string;
-  address: string;
-  phone: string;
-  queuePrefix: string;
-  resetDaily: boolean;
-};
+const emptyForm = { name: "", code: "", address: "", phone: "", active: true };
 
-const emptyForm: BranchForm = {
-  name: "",
-  code: "",
-  address: "",
-  phone: "",
-  queuePrefix: "",
-  resetDaily: true,
-};
+type BranchForm = typeof emptyForm;
 
 export default function OwnerBranches() {
-  const { business, refreshBranches } = useBusiness();;
-
+  const { refreshBranches } = useBusiness();
   const [items, setItems] = useState<Branch[]>([]);
+  const [form, setForm] = useState<BranchForm>(emptyForm);
+  const [editing, setEditing] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<BranchForm>(emptyForm);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
     try {
-      setError("");
-      setLoading(true);
-
-      const branches = await getAllBranches();
-      setItems(branches);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Gagal memuat data branch."
-      );
+      setItems(await getAllBranches());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal memuat cabang.");
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    load();
   }, []);
 
-  function updateField<K extends keyof BranchForm>(
-    field: K,
-    value: BranchForm[K]
-  ) {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
+  useEffect(() => { void load(); }, [load]);
+
+  function reset() {
+    setEditing(null);
+    setForm(emptyForm);
+    setMessage("");
   }
 
-  function startEdit(branch: Branch) {
-    setEditingId(branch.id);
-
+  function edit(branch: Branch) {
+    setEditing(branch.id);
     setForm({
       name: branch.name,
-      code: branch.code ?? "",
-      address: branch.address ?? "",
-      phone: branch.phone ?? "",
-      queuePrefix: branch.queueSettings?.prefix ?? "",
-      resetDaily: branch.queueSettings?.resetDaily ?? true,
+      code: branch.code || "",
+      address: branch.address || "",
+      phone: branch.phone || "",
+      active: branch.active,
     });
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+    setMessage("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function resetForm() {
-    setEditingId(null);
-    setForm(emptyForm);
-    setError("");
-  }
-
-  async function handleSubmit() {
-    const name = form.name.trim();
-
-    if (!name) {
-      setError("Nama branch wajib diisi.");
+  async function save() {
+    if (!form.name.trim()) {
+      setError("Nama cabang wajib diisi.");
       return;
     }
-
+    setSaving(true);
+    setError("");
+    setMessage("");
     try {
-      setSaving(true);
-      setError("");
-
-      const payload: Omit<Branch, "id"> = {
-        businessId: business.id,
-        name,
-        code: form.code.trim() || undefined,
-        address: form.address.trim() || undefined,
-        phone: form.phone.trim() || undefined,
-        queueSettings: {
-          resetDaily: form.resetDaily,
-          prefix: form.queuePrefix.trim() || undefined,
-        },
-        active: true,
-      };
-
-      await saveBranch(payload, editingId ?? undefined);
-      await refreshBranches();
-      resetForm();
+      const successMessage = editing
+        ? "Cabang berhasil diperbarui."
+        : "Cabang berhasil ditambahkan.";
+      if (editing) {
+        await updateBranch(editing, form);
+      } else {
+        await createBranch(form);
+      }
       await load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Gagal menyimpan branch."
-      );
+      await refreshBranches();
+      setEditing(null);
+      setForm(emptyForm);
+      setMessage(successMessage);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal menyimpan cabang.");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleToggle(branch: Branch) {
+  async function remove(branch: Branch) {
+    if (!confirm(`Hapus cabang "${branch.name}"?`)) return;
+    setError("");
     try {
-      setError("");
-
-      await toggleBranch(branch.id, !branch.active);
-      await refreshBranches();
+      await deleteBranch(branch.id);
       await load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Gagal mengubah status branch."
-      );
+      await refreshBranches();
+      setMessage("Cabang berhasil dihapus.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal menghapus cabang.");
     }
   }
 
-  if (loading) {
-    return <Loading />;
-  }
-
-  return (
-    <div>
-      <div className="section-head">
-        <div>
-          <div className="eyebrow">BUSINESS</div>
-
-          <h1>Branch</h1>
-
-          <p className="muted">
-            Kelola cabang barber, informasi kontak, dan pengaturan antrean.
-          </p>
-        </div>
+  return <div>
+    <div className="section-head">
+      <div>
+        <div className="eyebrow">BRANCH MANAGEMENT</div>
+        <h1>Cabang</h1>
+        <p className="muted">Kelola cabang, alamat, kontak, dan status operasional.</p>
       </div>
+      <button className="btn secondary" onClick={() => void load()} disabled={loading}>
+        <RefreshCw size={16} /> Refresh
+      </button>
+    </div>
 
-      {error && (
-        <div
-          className="panel"
-          style={{
-            marginBottom: 16,
-            borderColor: "#b94a48",
-          }}
-        >
-          <strong>Terjadi masalah</strong>
-          <p className="muted">{error}</p>
-        </div>
-      )}
+    {error && <ErrorBox message={error} />}
+    {message && <div className="alert success">{message}</div>}
 
-      <div className="panel">
-        <div className="section-head">
-          <div>
-            <div className="eyebrow">
-              {editingId ? "EDIT BRANCH" : "NEW BRANCH"}
-            </div>
-
-            <h2>
-              {editingId
-                ? "Edit Branch"
-                : "Tambah Branch"}
-            </h2>
-          </div>
-
-          {editingId && (
-            <button
-              type="button"
-              className="btn secondary"
-              onClick={resetForm}
-            >
-              Batal
-            </button>
-          )}
+    <div className="owner-grid">
+      <section className="panel">
+        <div className="panel-title">
+          <div><div className="eyebrow">{editing ? "EDIT CABANG" : "CABANG BARU"}</div><h2>{editing ? "Edit Cabang" : "Tambah Cabang"}</h2></div>
+          {editing && <button className="btn ghost" onClick={reset}>Batal</button>}
         </div>
 
         <div className="form-grid">
-          <input
-            placeholder="Nama branch *"
-            value={form.name}
-            onChange={(event) =>
-              updateField("name", event.target.value)
-            }
-          />
-
-          <input
-            placeholder="Kode branch"
-            value={form.code}
-            onChange={(event) =>
-              updateField("code", event.target.value)
-            }
-          />
-
-          <input
-            placeholder="Nomor telepon"
-            value={form.phone}
-            onChange={(event) =>
-              updateField("phone", event.target.value)
-            }
-          />
-
-          <input
-            placeholder="Prefix antrean, contoh A"
-            value={form.queuePrefix}
-            onChange={(event) =>
-              updateField(
-                "queuePrefix",
-                event.target.value.toUpperCase()
-              )
-            }
-          />
-
-          <input
-            className="wide"
-            placeholder="Alamat branch"
-            value={form.address}
-            onChange={(event) =>
-              updateField("address", event.target.value)
-            }
-          />
+          <label>Nama Cabang<input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Barber Online - Jatiroto" /></label>
+          <label>Kode Cabang<input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="JTR" /></label>
+          <label>Nomor Telepon / WhatsApp<input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="08xxxxxxxxxx" /></label>
+          <label>Alamat<textarea rows={3} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Alamat lengkap cabang" /></label>
         </div>
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            marginTop: 16,
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={form.resetDaily}
-            onChange={(event) =>
-              updateField(
-                "resetDaily",
-                event.target.checked
-              )
-            }
-          />
+        <label className="check"><input type="checkbox" checked={form.active} onChange={e => setForm({ ...form, active: e.target.checked })} /> Cabang aktif</label>
+        <button className="btn primary full" disabled={saving} onClick={() => void save()}>
+          {editing ? <Pencil size={16} /> : <Plus size={16} />}
+          {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Cabang"}
+        </button>
+      </section>
 
-          <span>
-            Nomor antrean reset setiap hari
-          </span>
-        </label>
-
-        <div style={{ marginTop: 20 }}>
-          <button
-            type="button"
-            className="btn primary"
-            disabled={saving}
-            onClick={handleSubmit}
-          >
-            {saving
-              ? "Menyimpan..."
-              : editingId
-                ? "Simpan Perubahan"
-                : "Tambah Branch"}
-          </button>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 24 }}>
-        <div className="section-head">
-          <div>
-            <div className="eyebrow">BRANCH LIST</div>
-
-            <h2>
-              Daftar Branch ({items.length})
-            </h2>
-          </div>
-        </div>
-
-        {items.length === 0 ? (
-          <div className="panel">
-            <h3>Belum ada branch</h3>
-
-            <p className="muted">
-              Tambahkan branch pertama untuk mulai
-              menggunakan fitur operasional Barber Online.
-            </p>
-          </div>
-        ) : (
-          <div className="cards">
-            {items.map((branch) => (
-              <div
-                className="mini-card"
-                key={branch.id}
-              >
-                <div className="avatar">
-                  {branch.name
-                    .slice(0, 1)
-                    .toUpperCase()}
-                </div>
-
-                <div className="grow">
-                  <b>{branch.name}</b>
-
-                  <p>
-                    {branch.code
-                      ? `Kode: ${branch.code}`
-                      : "Tanpa kode branch"}
-                  </p>
-
-                  {branch.address && (
-                    <p>{branch.address}</p>
-                  )}
-
-                  {branch.phone && (
-                    <p>{branch.phone}</p>
-                  )}
-
-                  <span>
-                    {branch.queueSettings?.prefix
-                      ? `Prefix antrean: ${branch.queueSettings.prefix}`
-                      : "Tanpa prefix antrean"}
-                    {" • "}
-                    {branch.queueSettings?.resetDaily !== false
-                      ? "Reset harian"
-                      : "Tidak reset harian"}
-                  </span>
-
-                  <div style={{ marginTop: 8 }}>
-                    <strong>
-                      {branch.active
-                        ? "Aktif"
-                        : "Nonaktif"}
-                    </strong>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <button
-                    type="button"
-                    className="btn secondary"
-                    onClick={() =>
-                      startEdit(branch)
-                    }
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`btn ${
-                      branch.active
-                        ? "danger"
-                        : "secondary"
-                    }`}
-                    onClick={() =>
-                      handleToggle(branch)
-                    }
-                  >
-                    {branch.active
-                      ? "Nonaktifkan"
-                      : "Aktifkan"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <section className="panel">
+        <div className="panel-title"><h2>Daftar Cabang</h2><span className="muted">{items.length} cabang</span></div>
+        {loading ? <div className="empty">Memuat cabang...</div> : items.length === 0 ? <Empty>Belum ada cabang.</Empty> : <div className="cards">
+          {items.map(branch => <div className="mini-card" key={branch.id}>
+            <div className="avatar"><Building2 size={18} /></div>
+            <div className="grow">
+              <b>{branch.name}</b>
+              <p>{branch.address || "Alamat belum diatur"}</p>
+              <span>{branch.code || "Tanpa kode"} • {branch.phone || "Tanpa nomor"} • {branch.active ? "Aktif" : "Nonaktif"}</span>
+            </div>
+            <button className="btn small ghost" onClick={() => edit(branch)} aria-label={`Edit ${branch.name}`}><Pencil size={14} /></button>
+            <button className="btn small danger" onClick={() => void remove(branch)} aria-label={`Hapus ${branch.name}`}><Trash2 size={14} /></button>
+          </div>)}
+        </div>}
+      </section>
     </div>
-  );
+  </div>;
 }
