@@ -1,38 +1,557 @@
-import { useState } from "react";
-import { Save } from "lucide-react";
-import { ErrorBox } from "../components";
+import { useEffect, useState } from "react";
+
+import {
+  deleteService,
+  getAllServices,
+  saveService,
+  toggleService,
+} from "../services/data";
+
 import { useBusiness } from "../context/BusinessContext";
-import { updateBusiness } from "../services/business";
+
+import type { Service } from "../types";
+
+import {
+  Loading,
+} from "../components";
+
 import ImageUploader from "../components/ImageUploader";
 
-export default function OwnerSettings() {
-  const { business } = useBusiness();
-  const [name, setName] = useState(business.name);
-  const [phone, setPhone] = useState(business.phone || "");
-  const [email, setEmail] = useState(business.email || "");
-  const [address, setAddress] = useState(business.address || "");
-  const [logoUrl, setLogoUrl] = useState(business.logoUrl || "");
-  const [primaryColor, setPrimaryColor] = useState(business.primaryColor || "#c6a15b");
-  const [secondaryColor, setSecondaryColor] = useState(business.secondaryColor || "#11161b");
-  const [timezone, setTimezone] = useState(business.timezone || "Asia/Jakarta");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
+export default function AdminServices() {
+  const { business } =
+    useBusiness();
 
-  async function save() {
-    if (!name.trim()) return setError("Nama bisnis wajib diisi.");
-    setSaving(true); setError(""); setMessage("");
+  const [items, setItems] =
+    useState<Service[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [editingId, setEditingId] =
+    useState<string | null>(null);
+
+  const [name, setName] =
+    useState("");
+
+  const [duration, setDuration] =
+    useState(30);
+
+  const [price, setPrice] =
+    useState(30000);
+
+  const [desc, setDesc] =
+    useState("");
+
+  const [imageUrl, setImageUrl] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
+
+  async function load() {
     try {
-      await updateBusiness({ name: name.trim(), phone: phone.trim() || undefined, email: email.trim() || undefined, address: address.trim() || undefined, logoUrl: logoUrl || undefined, primaryColor, secondaryColor, timezone });
-      setMessage("Pengaturan bisnis tersimpan. Muat ulang halaman agar branding header ikut diperbarui.");
-    } catch (e) { setError(e instanceof Error ? e.message : "Gagal menyimpan pengaturan."); }
-    finally { setSaving(false); }
+      setLoading(true);
+      setError("");
+
+      const data =
+        await getAllServices();
+
+      setItems(data);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal memuat layanan."
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
-  return <div><div className="section-head"><div><div className="eyebrow">BUSINESS SETTINGS</div><h1>Pengaturan</h1><p className="muted">Branding bisnis dan konfigurasi dasar Barber Online.</p></div></div>
-    {error && <ErrorBox message={error}/>} {message && <div className="alert success">{message}</div>}
-    <section className="panel"><h2>Identitas Bisnis</h2><div className="form-grid"><label>Nama bisnis<input value={name} onChange={e=>setName(e.target.value)}/></label><label>WhatsApp / Telepon<input value={phone} onChange={e=>setPhone(e.target.value)}/></label><label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Alamat<textarea rows={3} value={address} onChange={e=>setAddress(e.target.value)}/></label></div><ImageUploader value={logoUrl} onChange={setLogoUrl} folder={`barber-online/${business.id}/business`} label="Logo bisnis" hint="Gunakan PNG/WebP transparan bila tersedia" maxSizeMb={5}/></section>
-    <section className="panel"><h2>Branding</h2><div className="form-grid"><label>Warna utama<input type="text" value={primaryColor} onChange={e=>setPrimaryColor(e.target.value)} placeholder="#c6a15b"/></label><label>Warna sekunder<input type="text" value={secondaryColor} onChange={e=>setSecondaryColor(e.target.value)} placeholder="#11161b"/></label><label>Timezone<input value={timezone} onChange={e=>setTimezone(e.target.value)} placeholder="Asia/Jakarta"/></label></div></section>
-    <button className="btn primary" disabled={saving} onClick={save}><Save size={16}/>{saving?"Menyimpan...":"Simpan Pengaturan"}</button>
-  </div>;
+  useEffect(() => {
+    load();
+  }, []);
+
+  function resetForm() {
+    setEditingId(null);
+    setName("");
+    setDuration(30);
+    setPrice(30000);
+    setDesc("");
+    setImageUrl("");
+    setError("");
+  }
+
+  function startEdit(
+    service: Service
+  ) {
+    setEditingId(service.id);
+    setName(service.name);
+    setDuration(
+      service.durationMinutes
+    );
+    setPrice(service.price);
+    setDesc(
+      service.description ||
+        ""
+    );
+    setImageUrl(
+      service.imageUrl ||
+        ""
+    );
+    setError("");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  async function submit() {
+    if (!name.trim()) {
+      setError(
+        "Nama layanan wajib diisi."
+      );
+      return;
+    }
+
+    if (
+      !Number.isFinite(
+        Number(duration)
+      ) ||
+      Number(duration) <= 0
+    ) {
+      setError(
+        "Durasi harus lebih dari 0 menit."
+      );
+      return;
+    }
+
+    if (
+      !Number.isFinite(
+        Number(price)
+      ) ||
+      Number(price) < 0
+    ) {
+      setError(
+        "Harga tidak valid."
+      );
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+
+      const existing =
+        editingId
+          ? items.find(
+              (item) =>
+                item.id ===
+                editingId
+            )
+          : undefined;
+
+      await saveService(
+        {
+          businessId:
+            business.id,
+
+          branchId:
+            existing?.branchId,
+
+          name:
+            name.trim(),
+
+          description:
+            desc.trim() ||
+            undefined,
+
+          durationMinutes:
+            Number(duration),
+
+          price:
+            Number(price),
+
+          imageUrl:
+            imageUrl.trim() ||
+            undefined,
+
+          active:
+            existing?.active ??
+            true,
+        },
+        editingId ||
+          undefined
+      );
+
+      resetForm();
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal menyimpan layanan."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(
+    service: Service
+  ) {
+    const confirmed =
+      window.confirm(
+        `Hapus layanan "${service.name}"?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setError("");
+
+      await deleteService(
+        service.id
+      );
+
+      if (
+        editingId ===
+        service.id
+      ) {
+        resetForm();
+      }
+
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal menghapus layanan."
+      );
+    }
+  }
+
+  async function toggle(
+    service: Service
+  ) {
+    try {
+      setError("");
+
+      await toggleService(
+        service.id,
+        !service.active
+      );
+
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal mengubah status layanan."
+      );
+    }
+  }
+
+  if (loading) {
+    return <Loading />;
+  }
+
+  return (
+    <div>
+      <div className="section-head">
+        <div>
+          <div className="eyebrow">
+            CATALOG
+          </div>
+
+          <h1>Layanan</h1>
+
+          <p className="muted">
+            Kelola layanan, durasi,
+            harga, foto, dan status
+            layanan.
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="panel">
+          <p className="error">
+            {error}
+          </p>
+        </div>
+      )}
+
+      <div className="panel">
+        <div className="panel-title">
+          <div>
+            <div className="eyebrow">
+              {editingId
+                ? "EDIT LAYANAN"
+                : "LAYANAN BARU"}
+            </div>
+
+            <h2>
+              {editingId
+                ? "Edit Layanan"
+                : "Tambah Layanan"}
+            </h2>
+          </div>
+        </div>
+
+        <div className="form-grid">
+          <label>
+            <span>
+              Nama Layanan
+            </span>
+
+            <input
+              placeholder="Contoh: Haircut"
+              value={name}
+              onChange={(e) =>
+                setName(
+                  e.target.value
+                )
+              }
+            />
+          </label>
+
+          <label>
+            <span>
+              Durasi
+            </span>
+
+            <input
+              type="number"
+              min="1"
+              placeholder="Menit"
+              value={duration}
+              onChange={(e) =>
+                setDuration(
+                  Number(
+                    e.target.value
+                  )
+                )
+              }
+            />
+
+            <small className="muted">
+              Lama pengerjaan layanan
+              dalam menit.
+            </small>
+          </label>
+
+          <label>
+            <span>
+              Harga
+            </span>
+
+            <input
+              type="number"
+              min="0"
+              placeholder="Harga"
+              value={price}
+              onChange={(e) =>
+                setPrice(
+                  Number(
+                    e.target.value
+                  )
+                )
+              }
+            />
+
+            <small className="muted">
+              Harga layanan dalam Rupiah.
+            </small>
+          </label>
+
+          <label>
+            <span>
+              Deskripsi
+            </span>
+
+            <input
+              placeholder="Contoh: Potong rambut pria"
+              value={desc}
+              onChange={(e) =>
+                setDesc(
+                  e.target.value
+                )
+              }
+            />
+
+            <small className="muted">
+              Keterangan singkat yang
+              akan membantu pelanggan
+              memahami layanan.
+            </small>
+          </label>
+        </div>
+
+        <ImageUploader
+          value={imageUrl}
+          onChange={setImageUrl}
+          folder={`barber-online/${business.id}/services`}
+          label="Foto Layanan"
+          hint="Opsional. Foto akan digunakan pada katalog."
+        />
+
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            marginTop: 16,
+          }}
+        >
+          <button
+            className="btn primary"
+            disabled={
+              saving ||
+              !name.trim()
+            }
+            onClick={submit}
+          >
+            {saving
+              ? "Menyimpan..."
+              : editingId
+              ? "Simpan Perubahan"
+              : "Tambah Layanan"}
+          </button>
+
+          {editingId && (
+            <button
+              className="btn secondary"
+              disabled={saving}
+              onClick={resetForm}
+            >
+              Batal Edit
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="cards">
+        {items.length === 0 ? (
+          <div className="panel">
+            <p className="muted">
+              Belum ada layanan.
+            </p>
+          </div>
+        ) : (
+          items.map(
+            (service) => (
+              <div
+                className="mini-card"
+                key={service.id}
+              >
+                {service.imageUrl ? (
+                  <img
+                    className="thumb"
+                    src={
+                      service.imageUrl
+                    }
+                    alt={
+                      service.name
+                    }
+                  />
+                ) : (
+                  <div className="avatar">
+                    S
+                  </div>
+                )}
+
+                <div className="grow">
+                  <b>
+                    {service.name}
+                  </b>
+
+                  <p>
+                    {service.description ||
+                      "Tidak ada deskripsi"}
+                  </p>
+
+                  <span>
+                    {
+                      service.durationMinutes
+                    }{" "}
+                    menit •{" "}
+                    {formatIDR(
+                      service.price
+                    )}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    flexWrap:
+                      "wrap",
+                  }}
+                >
+                  <button
+                    className="btn secondary"
+                    onClick={() =>
+                      startEdit(
+                        service
+                      )
+                    }
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    className={`btn ${
+                      service.active
+                        ? "danger"
+                        : "secondary"
+                    }`}
+                    onClick={() =>
+                      toggle(
+                        service
+                      )
+                    }
+                  >
+                    {service.active
+                      ? "Nonaktifkan"
+                      : "Aktifkan"}
+                  </button>
+
+                  <button
+                    className="btn danger"
+                    onClick={() =>
+                      remove(
+                        service
+                      )
+                    }
+                  >
+                    Hapus
+                  </button>
+                </div>
+              </div>
+            )
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+function formatIDR(
+  value: number
+) {
+  return new Intl.NumberFormat(
+    "id-ID",
+    {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0,
+    }
+  ).format(value);
 }
