@@ -1,3 +1,4 @@
+import { getAuth } from "firebase/auth";
 import {
   doc,
   getDocs,
@@ -8,8 +9,14 @@ import {
   where,
 } from "firebase/firestore";
 
-import { db, BUSINESS_ID } from "../lib/firebase";
-import { businessCollection } from "./business";
+import {
+  db,
+  BUSINESS_ID,
+} from "../lib/firebase";
+
+import {
+  businessCollection,
+} from "./business";
 
 import type {
   Booking,
@@ -23,16 +30,6 @@ const transactions = () =>
 
 const products = () =>
   businessCollection("products");
-
-function compactObject(
-  input: Record<string, unknown>
-): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(input).filter(
-      ([, value]) => value !== undefined
-    )
-  );
-}
 
 export async function getTransactions(
   branchId?: string,
@@ -71,10 +68,10 @@ export async function getTransactions(
   const snap = await getDocs(q);
 
   return snap.docs.map(
-    (d) =>
+    (item) =>
       ({
-        id: d.id,
-        ...d.data(),
+        id: item.id,
+        ...item.data(),
       }) as Transaction
   );
 }
@@ -82,10 +79,6 @@ export async function getTransactions(
 export async function getTransactionForBooking(
   bookingId: string
 ): Promise<Transaction | null> {
-  if (!bookingId) {
-    return null;
-  }
-
   const snap = await getDocs(
     query(
       transactions(),
@@ -113,14 +106,18 @@ export async function createTransaction(args: {
   discount?: number;
   method: NonNullable<Transaction["method"]>;
   status?: Transaction["status"];
-  createdBy: string;
-}) {
-  if (!args.branchId) {
-    throw new Error("Cabang wajib dipilih.");
-  }
 
-  if (!args.createdBy) {
-    throw new Error("User pembuat transaksi tidak valid.");
+  // Dipertahankan agar kompatibel dengan caller lama.
+  // Nilai ini TIDAK dipercaya sebagai sumber UID.
+  createdBy?: string;
+}) {
+  const authenticatedUid =
+    getAuth().currentUser?.uid;
+
+  if (!authenticatedUid) {
+    throw new Error(
+      "Sesi login tidak valid. Silakan login ulang sebelum membuat transaksi."
+    );
   }
 
   if (!args.items.length) {
@@ -129,7 +126,8 @@ export async function createTransaction(args: {
     );
   }
 
-  const transactionRef = doc(transactions());
+  const transactionRef =
+    doc(transactions());
 
   const bookingRef = args.booking
     ? doc(
@@ -138,558 +136,631 @@ export async function createTransaction(args: {
       )
     : null;
 
-  const normalizedItems = args.items.map(
-    (item) => ({
-      type: item.type,
-      itemId: item.itemId,
-      name: item.name,
+  const normalizedItems =
+    args.items.map((item) => ({
+      ...item,
       quantity: Number(item.quantity),
-      unitPrice: Number(item.unitPrice),
       subtotal:
         Number(item.unitPrice) *
         Number(item.quantity),
-    })
-  );
+    }));
 
-  for (const item of normalizedItems) {
-    if (!item.itemId) {
-      throw new Error(
-        `Item ${item.name} memiliki ID tidak valid.`
-      );
-    }
-
-    if (
-      !Number.isFinite(item.quantity) ||
-      item.quantity <= 0
-    ) {
-      throw new Error(
-        `Jumlah ${item.name} tidak valid.`
-      );
-    }
-
-    if (
-      !Number.isFinite(item.unitPrice) ||
-      item.unitPrice < 0
-    ) {
-      throw new Error(
-        `Harga ${item.name} tidak valid.`
-      );
-    }
-  }
-
-  const subtotal = normalizedItems.reduce(
-    (sum, item) => sum + item.subtotal,
-    0
-  );
+  const subtotal =
+    normalizedItems.reduce(
+      (sum, item) =>
+        sum + item.subtotal,
+      0
+    );
 
   const promoDiscount = Number(
     args.booking?.promoDiscount || 0
   );
 
-  const requestedDiscount =
-    Number(args.discount || 0) +
-    promoDiscount;
-
   const discount = Math.max(
     0,
-    Math.min(requestedDiscount, subtotal)
+    Math.min(
+      Number(args.discount || 0) +
+        promoDiscount,
+      subtotal
+    )
   );
 
-  const total = subtotal - discount;
+  const total =
+    subtotal - discount;
 
   const paymentStatus: Transaction["status"] =
     args.status ??
-    (
-      args.method === "CASH" ||
-      args.method === "QRIS" ||
-      args.method === "TRANSFER"
-        ? "PAID"
-        : "UNPAID"
-    );
+    (args.method === "CASH" ||
+    args.method === "QRIS" ||
+    args.method === "TRANSFER"
+      ? "PAID"
+      : "UNPAID");
 
-  await runTransaction(db, async (tx) => {
-    const productRefs = normalizedItems
-      .filter(
-        (item) => item.type === "PRODUCT"
-      )
-      .map((item) => ({
-        item,
-        ref: doc(
-          products(),
-          item.itemId
-        ),
-      }));
-
-    const promoRef = args.booking?.promoId
-      ? doc(
-          businessCollection("promos"),
-          args.booking.promoId
-        )
-      : null;
-
-    const customerId =
-      args.customerId ??
-      args.booking?.customerId;
-
-    const usageRef =
-      args.booking?.promoId && customerId
-        ? doc(
-            businessCollection("promoUsages"),
-            `${args.booking.promoId}_${customerId}`
+  await runTransaction(
+    db,
+    async (tx) => {
+      const productRefs =
+        normalizedItems
+          .filter(
+            (item) =>
+              item.type === "PRODUCT"
           )
-        : null;
+          .map((item) => ({
+            item,
+            ref: doc(
+              products(),
+              item.itemId
+            ),
+          }));
 
-    const productSnaps: Array<{
-      item: (typeof productRefs)[number]["item"];
-      ref: (typeof productRefs)[number]["ref"];
-      snap: Awaited<
-        ReturnType<typeof tx.get>
-      >;
-    }> = [];
-
-    for (const entry of productRefs) {
-      productSnaps.push({
-        ...entry,
-        snap: await tx.get(entry.ref),
-      });
-    }
-
-    const promoSnap =
-      promoRef && paymentStatus === "PAID"
-        ? await tx.get(promoRef)
-        : null;
-
-    const usageSnap =
-      usageRef && paymentStatus === "PAID"
-        ? await tx.get(usageRef)
-        : null;
-
-    if (promoSnap?.exists()) {
-      const promo = promoSnap.data() as {
-        active?: boolean;
-        usageLimit?: number;
-        usageCount?: number;
-        customerUsageLimit?: number;
-      };
-
-      const usageCount = Number(
-        promo.usageCount || 0
-      );
-
-      const customerUsage =
-        usageSnap?.exists()
-          ? Number(
-              usageSnap.data().usageCount || 0
+      const promoRef =
+        args.booking?.promoId
+          ? doc(
+              businessCollection(
+                "promos"
+              ),
+              args.booking.promoId
             )
-          : 0;
+          : null;
 
-      if (!promo.active) {
-        throw new Error(
-          "Promo sudah tidak aktif."
-        );
+      const customerId =
+        args.customerId ??
+        args.booking?.customerId;
+
+      const usageRef =
+        args.booking?.promoId &&
+        customerId
+          ? doc(
+              businessCollection(
+                "promoUsages"
+              ),
+              `${args.booking.promoId}_${customerId}`
+            )
+          : null;
+
+      const productSnaps = [];
+
+      for (const entry of productRefs) {
+        productSnaps.push({
+          ...entry,
+          snap: await tx.get(
+            entry.ref
+          ),
+        });
+      }
+
+      const promoSnap =
+        promoRef &&
+        paymentStatus === "PAID"
+          ? await tx.get(promoRef)
+          : null;
+
+      const usageSnap =
+        usageRef &&
+        paymentStatus === "PAID"
+          ? await tx.get(usageRef)
+          : null;
+
+      if (promoSnap?.exists()) {
+        const promo =
+          promoSnap.data() as {
+            active?: boolean;
+            usageLimit?: number;
+            usageCount?: number;
+            customerUsageLimit?: number;
+          };
+
+        const usageCount =
+          Number(
+            promo.usageCount || 0
+          );
+
+        const customerUsage =
+          usageSnap?.exists()
+            ? Number(
+                usageSnap.data()
+                  .usageCount || 0
+              )
+            : 0;
+
+        if (!promo.active) {
+          throw new Error(
+            "Promo sudah tidak aktif."
+          );
+        }
+
+        if (
+          promo.usageLimit !==
+            undefined &&
+          promo.usageLimit > 0 &&
+          usageCount >=
+            promo.usageLimit
+        ) {
+          throw new Error(
+            "Kuota promo sudah habis."
+          );
+        }
+
+        if (
+          promo.customerUsageLimit !==
+            undefined &&
+          promo.customerUsageLimit > 0 &&
+          customerUsage >=
+            promo.customerUsageLimit
+        ) {
+          throw new Error(
+            "Batas penggunaan promo untuk customer ini sudah tercapai."
+          );
+        }
       }
 
       if (
-        promo.usageLimit !== undefined &&
-        promo.usageLimit > 0 &&
-        usageCount >= promo.usageLimit
+        args.booking &&
+        bookingRef
       ) {
-        throw new Error(
-          "Kuota promo sudah habis."
+        const bookingSnap =
+          await tx.get(
+            bookingRef
+          );
+
+        if (!bookingSnap.exists()) {
+          throw new Error(
+            "Booking tidak ditemukan."
+          );
+        }
+
+        const existing =
+          bookingSnap.data() as Booking;
+
+        if (
+          existing.businessId !==
+            BUSINESS_ID ||
+          existing.branchId !==
+            args.branchId
+        ) {
+          throw new Error(
+            "Booking bukan milik cabang ini."
+          );
+        }
+      }
+
+      for (const entry of productSnaps) {
+        if (!entry.snap.exists()) {
+          throw new Error(
+            `Produk ${entry.item.name} tidak ditemukan.`
+          );
+        }
+
+        const product =
+          entry.snap.data() as Product;
+
+        const qty =
+          entry.item.quantity;
+
+        if (
+          product.stock < qty
+        ) {
+          throw new Error(
+            `Stok ${product.name} tidak mencukupi.`
+          );
+        }
+
+        tx.update(
+          entry.ref,
+          {
+            stock:
+              product.stock - qty,
+            updatedAt:
+              serverTimestamp(),
+          }
         );
       }
 
-      if (
-        promo.customerUsageLimit !==
-          undefined &&
-        promo.customerUsageLimit > 0 &&
-        customerUsage >=
-          promo.customerUsageLimit
-      ) {
-        throw new Error(
-          "Batas penggunaan promo untuk customer ini sudah tercapai."
-        );
-      }
-    }
+      for (const entry of productSnaps) {
+        const product =
+          entry.snap.data() as Product;
 
-    if (args.booking && bookingRef) {
-      const bookingSnap =
-        await tx.get(bookingRef);
+        const qty =
+          entry.item.quantity;
 
-      if (!bookingSnap.exists()) {
-        throw new Error(
-          "Booking tidak ditemukan."
-        );
-      }
+        const movementRef =
+          doc(
+            businessCollection(
+              "stockMovements"
+            )
+          );
 
-      const existing =
-        bookingSnap.data() as Booking;
-
-      if (
-        existing.businessId !==
-          BUSINESS_ID ||
-        existing.branchId !==
-          args.branchId
-      ) {
-        throw new Error(
-          "Booking bukan milik cabang ini."
-        );
-      }
-    }
-
-    for (const entry of productSnaps) {
-      if (!entry.snap.exists()) {
-        throw new Error(
-          `Produk ${entry.item.name} tidak ditemukan.`
-        );
-      }
-
-      const product =
-        entry.snap.data() as Product;
-
-      const qty = entry.item.quantity;
-
-      if (product.branchId !== args.branchId) {
-        throw new Error(
-          `Produk ${product.name} bukan milik cabang ini.`
+        tx.set(
+          movementRef,
+          {
+            businessId:
+              BUSINESS_ID,
+            branchId:
+              args.branchId,
+            productId:
+              product.id,
+            productName:
+              product.name,
+            type: "SALE",
+            quantity: qty,
+            previousStock:
+              product.stock,
+            newStock:
+              product.stock - qty,
+            referenceId:
+              transactionRef.id,
+            referenceType:
+              "TRANSACTION",
+            createdBy:
+              authenticatedUid,
+            createdAt:
+              serverTimestamp(),
+          }
         );
       }
 
-      if (product.stock < qty) {
-        throw new Error(
-          `Stok ${product.name} tidak mencukupi.`
-        );
-      }
+      const transaction: Record<
+        string,
+        unknown
+      > = {
+        businessId:
+          BUSINESS_ID,
+        branchId:
+          args.branchId,
 
-      tx.update(entry.ref, {
-        stock: product.stock - qty,
-        updatedAt: serverTimestamp(),
-      });
-    }
+        createdBy:
+          authenticatedUid,
 
-    for (const entry of productSnaps) {
-      const product =
-        entry.snap.data() as Product;
+        items:
+          normalizedItems,
 
-      const qty = entry.item.quantity;
+        subtotal,
+        discount,
+        total,
 
-      const movementRef = doc(
-        businessCollection(
-          "stockMovements"
-        )
-      );
+        method:
+          args.method,
 
-      tx.set(movementRef, {
-        businessId: BUSINESS_ID,
-        branchId: args.branchId,
-        productId: product.id,
-        productName: product.name,
-        type: "SALE",
-        quantity: qty,
-        previousStock: product.stock,
-        newStock:
-          product.stock - qty,
-        referenceId:
-          transactionRef.id,
-        referenceType:
-          "TRANSACTION",
-        createdBy: args.createdBy,
+        paymentMethod:
+          args.method,
+
+        status:
+          paymentStatus,
+
+        paymentStatus,
+
         createdAt:
           serverTimestamp(),
-      });
-    }
 
-    const transaction = compactObject({
-      businessId: BUSINESS_ID,
-      branchId: args.branchId,
+        updatedAt:
+          serverTimestamp(),
+      };
 
-      bookingId:
-        args.booking?.id,
+      if (args.booking?.id) {
+        transaction.bookingId =
+          args.booking.id;
+      }
 
-      customerId:
-        args.customerId ??
-        args.booking?.customerId,
+      if (customerId) {
+        transaction.customerId =
+          customerId;
+      }
 
-      customerName:
+      const customerName =
         args.customerName ??
-        args.booking?.customerName,
+        args.booking?.customerName;
 
-      customerPhone:
+      if (customerName) {
+        transaction.customerName =
+          customerName;
+      }
+
+      const customerPhone =
         args.customerPhone ??
-        args.booking?.customerPhone,
+        args.booking?.customerPhone;
 
-      createdBy: args.createdBy,
+      if (customerPhone) {
+        transaction.customerPhone =
+          customerPhone;
+      }
 
-      barberId:
+      const barberId =
         args.barberId ??
-        args.booking?.barberId,
+        args.booking?.barberId;
 
-      barberName:
+      if (barberId) {
+        transaction.barberId =
+          barberId;
+      }
+
+      const barberName =
         args.barberName ??
-        args.booking?.barberName,
+        args.booking?.barberName;
 
-      items: normalizedItems,
+      if (barberName) {
+        transaction.barberName =
+          barberName;
+      }
 
-      subtotal,
-      discount,
-      total,
+      if (args.booking?.promoId) {
+        transaction.promoId =
+          args.booking.promoId;
+      }
 
-      promoId:
-        args.booking?.promoId,
+      if (args.booking?.promoCode) {
+        transaction.promoCode =
+          args.booking.promoCode;
+      }
 
-      promoCode:
-        args.booking?.promoCode,
-
-      method: args.method,
-      paymentMethod: args.method,
-
-      status: paymentStatus,
-      paymentStatus,
-
-      paidAt:
+      if (
         paymentStatus === "PAID"
-          ? serverTimestamp()
-          : undefined,
-
-      createdAt:
-        serverTimestamp(),
-
-      updatedAt:
-        serverTimestamp(),
-    });
-
-    tx.set(
-      transactionRef,
-      transaction
-    );
-
-    if (
-      promoRef &&
-      usageRef &&
-      paymentStatus === "PAID"
-    ) {
-      const currentUsage =
-        usageSnap?.exists()
-          ? Number(
-              usageSnap.data()
-                .usageCount || 0
-            )
-          : 0;
+      ) {
+        transaction.paidAt =
+          serverTimestamp();
+      }
 
       tx.set(
-        usageRef,
-        {
-          businessId: BUSINESS_ID,
-          branchId: args.branchId,
-          promoId:
-            args.booking?.promoId,
-          customerId,
-          usageCount:
-            currentUsage + 1,
-          lastUsedAt:
-            serverTimestamp(),
-          lastTransactionId:
-            transactionRef.id,
-        },
-        { merge: true }
+        transactionRef,
+        transaction
       );
-
-      const currentPromoUsage =
-        promoSnap?.exists()
-          ? Number(
-              promoSnap.data()
-                .usageCount || 0
-            )
-          : 0;
-
-      tx.update(promoRef, {
-        usageCount:
-          currentPromoUsage + 1,
-        updatedAt:
-          serverTimestamp(),
-      });
-    }
-
-    if (
-      args.booking &&
-      bookingRef &&
-      paymentStatus === "PAID"
-    ) {
-      tx.update(bookingRef, {
-        status: "COMPLETED",
-        updatedAt:
-          serverTimestamp(),
-      });
-    }
-  });
-
-  return transactionRef.id;
-}
-
-export async function markTransactionPaid(
-  transactionId: string,
-  method: NonNullable<Transaction["method"]>
-) {
-  if (!transactionId) {
-    throw new Error(
-      "ID transaksi tidak valid."
-    );
-  }
-
-  await runTransaction(db, async (tx) => {
-    const ref = doc(
-      transactions(),
-      transactionId
-    );
-
-    const snap = await tx.get(ref);
-
-    if (!snap.exists()) {
-      throw new Error(
-        "Transaksi tidak ditemukan."
-      );
-    }
-
-    const current = {
-      id: snap.id,
-      ...snap.data(),
-    } as Transaction;
-
-    if (current.status === "PAID") {
-      return;
-    }
-
-    const promoRef = current.promoId
-      ? doc(
-          businessCollection("promos"),
-          current.promoId
-        )
-      : null;
-
-    const usageRef =
-      current.promoId &&
-      current.customerId
-        ? doc(
-            businessCollection(
-              "promoUsages"
-            ),
-            `${current.promoId}_${current.customerId}`
-          )
-        : null;
-
-    const promoSnap = promoRef
-      ? await tx.get(promoRef)
-      : null;
-
-    const usageSnap = usageRef
-      ? await tx.get(usageRef)
-      : null;
-
-    if (promoSnap?.exists()) {
-      const promo =
-        promoSnap.data() as {
-          active?: boolean;
-          usageLimit?: number;
-          usageCount?: number;
-          customerUsageLimit?: number;
-        };
-
-      const usageCount =
-        Number(
-          promo.usageCount || 0
-        );
-
-      const customerUsage =
-        usageSnap?.exists()
-          ? Number(
-              usageSnap.data()
-                .usageCount || 0
-            )
-          : 0;
-
-      if (!promo.active) {
-        throw new Error(
-          "Promo sudah tidak aktif."
-        );
-      }
-
-      if (
-        promo.usageLimit !==
-          undefined &&
-        promo.usageLimit > 0 &&
-        usageCount >=
-          promo.usageLimit
-      ) {
-        throw new Error(
-          "Kuota promo sudah habis."
-        );
-      }
-
-      if (
-        promo.customerUsageLimit !==
-          undefined &&
-        promo.customerUsageLimit > 0 &&
-        customerUsage >=
-          promo.customerUsageLimit
-      ) {
-        throw new Error(
-          "Batas penggunaan promo untuk customer ini sudah tercapai."
-        );
-      }
 
       if (
         promoRef &&
         usageRef &&
-        current.customerId
+        paymentStatus === "PAID"
       ) {
+        const currentUsage =
+          usageSnap?.exists()
+            ? Number(
+                usageSnap.data()
+                  .usageCount || 0
+              )
+            : 0;
+
         tx.set(
           usageRef,
           {
             businessId:
               BUSINESS_ID,
             branchId:
-              current.branchId,
+              args.branchId,
             promoId:
-              current.promoId,
-            customerId:
-              current.customerId,
+              args.booking?.promoId,
+            customerId,
             usageCount:
-              customerUsage + 1,
+              currentUsage + 1,
             lastUsedAt:
               serverTimestamp(),
             lastTransactionId:
-              transactionId,
+              transactionRef.id,
           },
           { merge: true }
         );
 
-        tx.update(promoRef, {
-          usageCount:
-            usageCount + 1,
-          updatedAt:
-            serverTimestamp(),
-        });
+        const promoData =
+          promoSnap?.data();
+
+        tx.update(
+          promoRef,
+          {
+            usageCount:
+              Number(
+                promoData?.usageCount ||
+                  0
+              ) + 1,
+            updatedAt:
+              serverTimestamp(),
+          }
+        );
+      }
+
+      if (
+        args.booking &&
+        bookingRef &&
+        paymentStatus === "PAID"
+      ) {
+        tx.update(
+          bookingRef,
+          {
+            status:
+              "COMPLETED",
+            updatedAt:
+              serverTimestamp(),
+          }
+        );
       }
     }
+  );
 
-    const updatePayload =
-      compactObject({
-        method,
-        paymentMethod: method,
-        status: "PAID",
-        paymentStatus: "PAID",
-        paidAt: serverTimestamp(),
-        promoConsumedAt:
-          current.promoId
-            ? serverTimestamp()
-            : undefined,
-        updatedAt:
-          serverTimestamp(),
-      });
+  return transactionRef.id;
+}
 
-    tx.update(
-      ref,
-      updatePayload
+export async function markTransactionPaid(
+  transactionId: string,
+  method: NonNullable<
+    Transaction["method"]
+  >
+) {
+  const authenticatedUid =
+    getAuth().currentUser?.uid;
+
+  if (!authenticatedUid) {
+    throw new Error(
+      "Sesi login tidak valid. Silakan login ulang."
     );
-  });
+  }
+
+  await runTransaction(
+    db,
+    async (tx) => {
+      const ref = doc(
+        transactions(),
+        transactionId
+      );
+
+      const snap =
+        await tx.get(ref);
+
+      if (!snap.exists()) {
+        throw new Error(
+          "Transaksi tidak ditemukan."
+        );
+      }
+
+      const current = {
+        id: snap.id,
+        ...snap.data(),
+      } as Transaction;
+
+      if (
+        current.status === "PAID"
+      ) {
+        return;
+      }
+
+      const promoRef =
+        current.promoId
+          ? doc(
+              businessCollection(
+                "promos"
+              ),
+              current.promoId
+            )
+          : null;
+
+      const usageRef =
+        current.promoId &&
+        current.customerId
+          ? doc(
+              businessCollection(
+                "promoUsages"
+              ),
+              `${current.promoId}_${current.customerId}`
+            )
+          : null;
+
+      const promoSnap =
+        promoRef
+          ? await tx.get(
+              promoRef
+            )
+          : null;
+
+      const usageSnap =
+        usageRef
+          ? await tx.get(
+              usageRef
+            )
+          : null;
+
+      if (promoSnap?.exists()) {
+        const promo =
+          promoSnap.data() as {
+            active?: boolean;
+            usageLimit?: number;
+            usageCount?: number;
+            customerUsageLimit?: number;
+          };
+
+        const usageCount =
+          Number(
+            promo.usageCount || 0
+          );
+
+        const customerUsage =
+          usageSnap?.exists()
+            ? Number(
+                usageSnap.data()
+                  .usageCount || 0
+              )
+            : 0;
+
+        if (!promo.active) {
+          throw new Error(
+            "Promo sudah tidak aktif."
+          );
+        }
+
+        if (
+          promo.usageLimit !==
+            undefined &&
+          promo.usageLimit > 0 &&
+          usageCount >=
+            promo.usageLimit
+        ) {
+          throw new Error(
+            "Kuota promo sudah habis."
+          );
+        }
+
+        if (
+          promo.customerUsageLimit !==
+            undefined &&
+          promo.customerUsageLimit > 0 &&
+          customerUsage >=
+            promo.customerUsageLimit
+        ) {
+          throw new Error(
+            "Batas penggunaan promo untuk customer ini sudah tercapai."
+          );
+        }
+
+        if (
+          promoRef &&
+          usageRef
+        ) {
+          tx.set(
+            usageRef,
+            {
+              businessId:
+                BUSINESS_ID,
+              promoId:
+                current.promoId,
+              customerId:
+                current.customerId,
+              usageCount:
+                customerUsage + 1,
+              lastUsedAt:
+                serverTimestamp(),
+              lastTransactionId:
+                transactionId,
+            },
+            { merge: true }
+          );
+
+          tx.update(
+            promoRef,
+            {
+              usageCount:
+                usageCount + 1,
+              updatedAt:
+                serverTimestamp(),
+            }
+          );
+        }
+      }
+
+      tx.update(
+        ref,
+        {
+          method,
+          paymentMethod:
+            method,
+          status: "PAID",
+          paymentStatus:
+            "PAID",
+          paidAt:
+            serverTimestamp(),
+          ...(current.promoId
+            ? {
+                promoConsumedAt:
+                  serverTimestamp(),
+              }
+            : {}),
+          updatedAt:
+            serverTimestamp(),
+        }
+      );
+    }
+  );
 }
