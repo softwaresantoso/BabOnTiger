@@ -1,52 +1,96 @@
 import { useEffect, useState } from "react";
 import {
+  Edit3,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
+
+import {
+  Empty,
+  ErrorBox,
+  Loading,
+} from "../components";
+
+import {
+  deleteBarber,
   getAllBarbers,
   saveBarber,
   toggleBarber,
-  deleteBarber,
 } from "../services/data";
+
 import { useBusiness } from "../context/BusinessContext";
-import type { Barber } from "../types";
-import { Loading } from "../components";
+
+import type {
+  Barber,
+} from "../types";
+
 import ImageUploader from "../components/ImageUploader";
 
-export default function AdminBarbers() {
+type BarberForm = {
+  name: string;
+  branchId: string;
+  phone: string;
+  bio: string;
+  photoUrl: string;
+};
+
+const emptyForm: BarberForm = {
+  name: "",
+  branchId: "",
+  phone: "",
+  bio: "",
+  photoUrl: "",
+};
+
+export default function OwnerBarbers() {
   const {
     business,
     branches,
   } = useBusiness();
 
-  const [items, setItems] =
-    useState<Barber[]>([]);
+  const [
+    items,
+    setItems,
+  ] = useState<Barber[]>([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [saving, setSaving] =
-    useState(false);
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
 
-  const [editingId, setEditingId] =
-    useState<string | null>(null);
+  const [
+    busyId,
+    setBusyId,
+  ] = useState<string | null>(null);
 
-  const [name, setName] =
-    useState("");
+  const [
+    editingId,
+    setEditingId,
+  ] = useState<string | null>(null);
 
-  const [bio, setBio] =
-    useState("");
+  const [
+    form,
+    setForm,
+  ] = useState<BarberForm>(
+    emptyForm
+  );
 
-  const [photoUrl, setPhotoUrl] =
-    useState("");
-
-  const [branchId, setBranchId] =
-    useState("");
-
-  const [error, setError] =
-    useState("");
+  const [
+    error,
+    setError,
+  ] = useState("");
 
   async function load() {
     try {
-      setLoading(true);
       setError("");
+      setLoading(true);
 
       const data =
         await getAllBarbers();
@@ -69,20 +113,26 @@ export default function AdminBarbers() {
 
   function resetForm() {
     setEditingId(null);
-    setName("");
-    setBio("");
-    setPhotoUrl("");
-    setBranchId("");
+    setForm(emptyForm);
     setError("");
   }
 
-  function startEdit(barber: Barber) {
+  function startEdit(
+    barber: Barber
+  ) {
     setEditingId(barber.id);
-    setName(barber.name);
-    setBio(barber.bio || "");
-    setPhotoUrl(barber.photoUrl || "");
-    setBranchId(barber.branchId || "");
-    setError("");
+
+    setForm({
+      name: barber.name,
+      branchId:
+        barber.branchId ?? "",
+      phone:
+        barber.phone ?? "",
+      bio:
+        barber.bio ?? "",
+      photoUrl:
+        barber.photoUrl ?? "",
+    });
 
     window.scrollTo({
       top: 0,
@@ -90,15 +140,18 @@ export default function AdminBarbers() {
     });
   }
 
-  async function submit() {
-    if (!name.trim()) {
+  async function handleSubmit() {
+    const name =
+      form.name.trim();
+
+    if (!name) {
       setError(
         "Nama barber wajib diisi."
       );
       return;
     }
 
-    if (!branchId) {
+    if (!form.branchId) {
       setError(
         "Cabang wajib dipilih."
       );
@@ -113,18 +166,29 @@ export default function AdminBarbers() {
         {
           businessId:
             business.id,
-          branchId,
-          name:
-            name.trim(),
+          name,
+          branchId:
+            form.branchId,
+          phone:
+            form.phone.trim() ||
+            undefined,
           bio:
-            bio.trim() ||
+            form.bio.trim() ||
             undefined,
           photoUrl:
-            photoUrl.trim() ||
+            form.photoUrl.trim() ||
             undefined,
-          active: true,
+          active:
+            editingId
+              ? items.find(
+                  (item) =>
+                    item.id ===
+                    editingId
+                )?.active ?? true
+              : true,
         },
-        editingId || undefined
+        editingId ??
+          undefined
       );
 
       resetForm();
@@ -140,9 +204,47 @@ export default function AdminBarbers() {
     }
   }
 
-  async function remove(
+  async function handleToggle(
     barber: Barber
   ) {
+    if (!barber.id) {
+      setError(
+        "ID barber tidak valid."
+      );
+      return;
+    }
+
+    try {
+      setBusyId(barber.id);
+      setError("");
+
+      await toggleBarber(
+        barber.id,
+        !barber.active
+      );
+
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal mengubah status barber."
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDelete(
+    barber: Barber
+  ) {
+    if (!barber.id) {
+      setError(
+        "ID barber tidak valid."
+      );
+      return;
+    }
+
     const confirmed =
       window.confirm(
         `Hapus barber "${barber.name}"?`
@@ -153,6 +255,7 @@ export default function AdminBarbers() {
     }
 
     try {
+      setBusyId(barber.id);
       setError("");
 
       await deleteBarber(
@@ -172,27 +275,8 @@ export default function AdminBarbers() {
           ? err.message
           : "Gagal menghapus barber."
       );
-    }
-  }
-
-  async function toggle(
-    barber: Barber
-  ) {
-    try {
-      setError("");
-
-      await toggleBarber(
-        barber.id,
-        !barber.active
-      );
-
-      await load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Gagal mengubah status barber."
-      );
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -211,18 +295,15 @@ export default function AdminBarbers() {
           <h1>Barber</h1>
 
           <p className="muted">
-            Kelola barber, cabang, profil,
-            foto, dan status barber.
+            Kelola barber, cabang,
+            profil, dan status
+            keaktifan barber.
           </p>
         </div>
       </div>
 
       {error && (
-        <div className="panel">
-          <p className="error">
-            {error}
-          </p>
-        </div>
+        <ErrorBox message={error} />
       )}
 
       <div className="panel">
@@ -231,7 +312,7 @@ export default function AdminBarbers() {
             <div className="eyebrow">
               {editingId
                 ? "EDIT BARBER"
-                : "BARBER BARU"}
+                : "NEW BARBER"}
             </div>
 
             <h2>
@@ -240,29 +321,55 @@ export default function AdminBarbers() {
                 : "Tambah Barber"}
             </h2>
           </div>
+
+          {editingId && (
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={
+                resetForm
+              }
+            >
+              <X size={16} />
+              Batal
+            </button>
+          )}
         </div>
 
         <div className="form-grid">
           <label>
-            <span>Nama Barber</span>
-
+            Nama Barber
             <input
               placeholder="Contoh: Andi"
-              value={name}
+              value={
+                form.name
+              }
               onChange={(e) =>
-                setName(e.target.value)
+                setForm(
+                  (current) => ({
+                    ...current,
+                    name: e.target
+                      .value,
+                  })
+                )
               }
             />
           </label>
 
           <label>
-            <span>Cabang</span>
-
+            Cabang
             <select
-              value={branchId}
+              value={
+                form.branchId
+              }
               onChange={(e) =>
-                setBranchId(
-                  e.target.value
+                setForm(
+                  (current) => ({
+                    ...current,
+                    branchId:
+                      e.target
+                        .value,
+                  })
                 )
               }
             >
@@ -273,176 +380,282 @@ export default function AdminBarbers() {
               {branches.map(
                 (branch) => (
                   <option
-                    key={branch.id}
-                    value={branch.id}
+                    key={
+                      branch.id
+                    }
+                    value={
+                      branch.id
+                    }
                   >
                     {branch.name}
                   </option>
                 )
               )}
             </select>
-
-            <small className="muted">
-              Barber harus ditempatkan pada
-              satu cabang agar dapat muncul
-              saat pelanggan melakukan booking.
-            </small>
           </label>
 
           <label>
-            <span>Bio Singkat</span>
-
+            Nomor WhatsApp
             <input
-              placeholder="Contoh: Spesialis fade dan pompadour"
-              value={bio}
+              placeholder="Contoh: 081234567890"
+              value={
+                form.phone
+              }
               onChange={(e) =>
-                setBio(e.target.value)
+                setForm(
+                  (current) => ({
+                    ...current,
+                    phone: e.target
+                      .value,
+                  })
+                )
+              }
+            />
+          </label>
+
+          <label>
+            Bio
+            <input
+              placeholder="Contoh: Barber pria berpengalaman"
+              value={
+                form.bio
+              }
+              onChange={(e) =>
+                setForm(
+                  (current) => ({
+                    ...current,
+                    bio: e.target
+                      .value,
+                  })
+                )
               }
             />
           </label>
         </div>
 
         <ImageUploader
-          value={photoUrl}
-          onChange={setPhotoUrl}
+          value={
+            form.photoUrl
+          }
+          onChange={(value) =>
+            setForm(
+              (current) => ({
+                ...current,
+                photoUrl:
+                  value,
+              })
+            )
+          }
           folder={`barber-online/${business.id}/barbers`}
-          label="Foto Barber"
-          hint="Opsional. Gunakan foto profil barber."
+          label="Foto barber"
+          hint="Opsional. Gunakan foto wajah/profil yang jelas."
         />
 
         <div
           style={{
+            marginTop: 16,
             display: "flex",
             gap: 8,
-            marginTop: 16,
+            flexWrap: "wrap",
           }}
         >
           <button
+            type="button"
             className="btn primary"
-            disabled={
-              saving ||
-              !name.trim() ||
-              !branchId
+            disabled={saving}
+            onClick={
+              handleSubmit
             }
-            onClick={submit}
           >
+            {editingId ? (
+              <Save size={16} />
+            ) : (
+              <Plus size={16} />
+            )}
+
             {saving
               ? "Menyimpan..."
               : editingId
-              ? "Simpan Perubahan"
-              : "Tambah Barber"}
+                ? "Simpan Perubahan"
+                : "Tambah Barber"}
           </button>
 
           {editingId && (
             <button
+              type="button"
               className="btn secondary"
-              disabled={saving}
-              onClick={resetForm}
+              onClick={
+                resetForm
+              }
             >
-              Batal Edit
+              <X size={16} />
+              Batal
             </button>
           )}
         </div>
       </div>
 
-      <div className="cards">
+      <div
+        style={{
+          marginTop: 24,
+        }}
+      >
         {items.length === 0 ? (
-          <div className="panel">
-            <p className="muted">
-              Belum ada barber.
-            </p>
-          </div>
+          <Empty>
+            Belum ada barber.
+          </Empty>
         ) : (
-          items.map((barber) => {
-            const branch =
-              branches.find(
-                (item) =>
-                  item.id ===
-                  barber.branchId
-              );
+          <div className="cards">
+            {items.map(
+              (barber) => {
+                const branch =
+                  branches.find(
+                    (item) =>
+                      item.id ===
+                      barber.branchId
+                  );
 
-            return (
-              <div
-                className="mini-card"
-                key={barber.id}
-              >
-                {barber.photoUrl ? (
-                  <img
-                    className="thumb"
-                    src={barber.photoUrl}
-                    alt={barber.name}
-                  />
-                ) : (
-                  <div className="avatar">
-                    {barber.name
-                      .slice(0, 1)
-                      .toUpperCase()}
+                return (
+                  <div
+                    className="mini-card"
+                    key={
+                      barber.id
+                    }
+                  >
+                    {barber.photoUrl ? (
+                      <img
+                        className="thumb"
+                        src={
+                          barber.photoUrl
+                        }
+                        alt={
+                          barber.name
+                        }
+                      />
+                    ) : (
+                      <div className="avatar">
+                        {barber.name
+                          .slice(
+                            0,
+                            1
+                          )
+                          .toUpperCase()}
+                      </div>
+                    )}
+
+                    <div className="grow">
+                      <b>
+                        {barber.name}
+                      </b>
+
+                      <p>
+                        {barber.bio ||
+                          "Barber profesional"}
+                      </p>
+
+                      <span>
+                        Cabang:{" "}
+                        {branch?.name ||
+                          "Belum ditentukan"}
+                      </span>
+
+                      <small
+                        style={{
+                          display:
+                            "block",
+                          marginTop: 4,
+                        }}
+                      >
+                        {barber.phone ||
+                          "Nomor WhatsApp belum diisi"}
+                      </small>
+
+                      <small
+                        style={{
+                          display:
+                            "block",
+                          marginTop: 4,
+                        }}
+                      >
+                        Status:{" "}
+                        {barber.active
+                          ? "Aktif"
+                          : "Nonaktif"}
+                      </small>
+                    </div>
+
+                    <div
+                      style={{
+                        display:
+                          "flex",
+                        gap: 8,
+                        flexWrap:
+                          "wrap",
+                        justifyContent:
+                          "flex-end",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        onClick={() =>
+                          startEdit(
+                            barber
+                          )
+                        }
+                      >
+                        <Edit3
+                          size={15}
+                        />
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`btn ${
+                          barber.active
+                            ? "danger"
+                            : "secondary"
+                        }`}
+                        disabled={
+                          busyId ===
+                          barber.id
+                        }
+                        onClick={() =>
+                          handleToggle(
+                            barber
+                          )
+                        }
+                      >
+                        {barber.active
+                          ? "Nonaktifkan"
+                          : "Aktifkan"}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn danger"
+                        disabled={
+                          busyId ===
+                          barber.id
+                        }
+                        onClick={() =>
+                          handleDelete(
+                            barber
+                          )
+                        }
+                      >
+                        <Trash2
+                          size={15}
+                        />
+                        Hapus
+                      </button>
+                    </div>
                   </div>
-                )}
-
-                <div className="grow">
-                  <b>
-                    {barber.name}
-                  </b>
-
-                  <p>
-                    {barber.bio ||
-                      "Barber profesional"}
-                  </p>
-
-                  <small>
-                    Cabang:{" "}
-                    {branch?.name ||
-                      "Belum ditentukan"}
-                  </small>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap:
-                      "wrap",
-                  }}
-                >
-                  <button
-                    className="btn secondary"
-                    onClick={() =>
-                      startEdit(
-                        barber
-                      )
-                    }
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    className={`btn ${
-                      barber.active
-                        ? "danger"
-                        : "secondary"
-                    }`}
-                    onClick={() =>
-                      toggle(barber)
-                    }
-                  >
-                    {barber.active
-                      ? "Nonaktifkan"
-                      : "Aktifkan"}
-                  </button>
-
-                  <button
-                    className="btn danger"
-                    onClick={() =>
-                      remove(barber)
-                    }
-                  >
-                    Hapus
-                  </button>
-                </div>
-              </div>
-            );
-          })
+                );
+              }
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -1,4 +1,17 @@
 import { useEffect, useState } from "react";
+import {
+  Edit3,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
+
+import {
+  Empty,
+  ErrorBox,
+  Loading,
+} from "../components";
 
 import {
   deleteService,
@@ -9,52 +22,79 @@ import {
 
 import { useBusiness } from "../context/BusinessContext";
 
-import type { Service } from "../types";
-
-import {
-  Loading,
-} from "../components";
+import type {
+  Service,
+} from "../types";
 
 import ImageUploader from "../components/ImageUploader";
 
-export default function AdminServices() {
-  const { business } =
-    useBusiness();
+type ServiceForm = {
+  name: string;
+  branchId: string;
+  category: string;
+  description: string;
+  durationMinutes: number;
+  price: number;
+  imageUrl: string;
+};
 
-  const [items, setItems] =
-    useState<Service[]>([]);
+const emptyForm: ServiceForm = {
+  name: "",
+  branchId: "",
+  category: "",
+  description: "",
+  durationMinutes: 30,
+  price: 30000,
+  imageUrl: "",
+};
 
-  const [loading, setLoading] =
-    useState(true);
+export default function OwnerServices() {
+  const {
+    business,
+    branches,
+  } = useBusiness();
 
-  const [saving, setSaving] =
-    useState(false);
+  const [
+    items,
+    setItems,
+  ] = useState<Service[]>([]);
 
-  const [editingId, setEditingId] =
-    useState<string | null>(null);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [name, setName] =
-    useState("");
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
 
-  const [duration, setDuration] =
-    useState(30);
+  const [
+    busyId,
+    setBusyId,
+  ] = useState<string | null>(null);
 
-  const [price, setPrice] =
-    useState(30000);
+  const [
+    editingId,
+    setEditingId,
+  ] = useState<string | null>(null);
 
-  const [desc, setDesc] =
-    useState("");
+  const [
+    form,
+    setForm,
+  ] = useState<ServiceForm>(
+    emptyForm
+  );
 
-  const [imageUrl, setImageUrl] =
-    useState("");
-
-  const [error, setError] =
-    useState("");
+  const [
+    error,
+    setError,
+  ] = useState("");
 
   async function load() {
     try {
-      setLoading(true);
       setError("");
+      setLoading(true);
 
       const data =
         await getAllServices();
@@ -64,7 +104,7 @@ export default function AdminServices() {
       setError(
         err instanceof Error
           ? err.message
-          : "Gagal memuat layanan."
+          : "Gagal memuat data layanan."
       );
     } finally {
       setLoading(false);
@@ -77,11 +117,7 @@ export default function AdminServices() {
 
   function resetForm() {
     setEditingId(null);
-    setName("");
-    setDuration(30);
-    setPrice(30000);
-    setDesc("");
-    setImageUrl("");
+    setForm(emptyForm);
     setError("");
   }
 
@@ -89,20 +125,22 @@ export default function AdminServices() {
     service: Service
   ) {
     setEditingId(service.id);
-    setName(service.name);
-    setDuration(
-      service.durationMinutes
-    );
-    setPrice(service.price);
-    setDesc(
-      service.description ||
-        ""
-    );
-    setImageUrl(
-      service.imageUrl ||
-        ""
-    );
-    setError("");
+
+    setForm({
+      name: service.name,
+      branchId:
+        service.branchId ?? "",
+      category:
+        service.category ?? "",
+      description:
+        service.description ?? "",
+      durationMinutes:
+        service.durationMinutes,
+      price:
+        service.price,
+      imageUrl:
+        service.imageUrl ?? "",
+    });
 
     window.scrollTo({
       top: 0,
@@ -110,19 +148,33 @@ export default function AdminServices() {
     });
   }
 
-  async function submit() {
-    if (!name.trim()) {
+  async function handleSubmit() {
+    const name =
+      form.name.trim();
+
+    if (!name) {
       setError(
         "Nama layanan wajib diisi."
       );
       return;
     }
 
+    if (!form.branchId) {
+      setError(
+        "Cabang wajib dipilih."
+      );
+      return;
+    }
+
     if (
       !Number.isFinite(
-        Number(duration)
+        Number(
+          form.durationMinutes
+        )
       ) ||
-      Number(duration) <= 0
+      Number(
+        form.durationMinutes
+      ) <= 0
     ) {
       setError(
         "Durasi harus lebih dari 0 menit."
@@ -132,12 +184,12 @@ export default function AdminServices() {
 
     if (
       !Number.isFinite(
-        Number(price)
+        Number(form.price)
       ) ||
-      Number(price) < 0
+      Number(form.price) < 0
     ) {
       setError(
-        "Harga tidak valid."
+        "Harga layanan tidak valid."
       );
       return;
     }
@@ -146,7 +198,7 @@ export default function AdminServices() {
       setSaving(true);
       setError("");
 
-      const existing =
+      const current =
         editingId
           ? items.find(
               (item) =>
@@ -159,32 +211,32 @@ export default function AdminServices() {
         {
           businessId:
             business.id,
-
+          name,
           branchId:
-            existing?.branchId,
-
-          name:
-            name.trim(),
-
+            form.branchId,
+          category:
+            form.category.trim() ||
+            undefined,
           description:
-            desc.trim() ||
+            form.description
+              .trim() ||
             undefined,
-
           durationMinutes:
-            Number(duration),
-
+            Number(
+              form.durationMinutes
+            ),
           price:
-            Number(price),
-
+            Number(form.price),
           imageUrl:
-            imageUrl.trim() ||
+            form.imageUrl.trim() ||
             undefined,
-
+          barberIds:
+            current?.barberIds,
           active:
-            existing?.active ??
+            current?.active ??
             true,
         },
-        editingId ||
+        editingId ??
           undefined
       );
 
@@ -201,9 +253,47 @@ export default function AdminServices() {
     }
   }
 
-  async function remove(
+  async function handleToggle(
     service: Service
   ) {
+    if (!service.id) {
+      setError(
+        "ID layanan tidak valid."
+      );
+      return;
+    }
+
+    try {
+      setBusyId(service.id);
+      setError("");
+
+      await toggleService(
+        service.id,
+        !service.active
+      );
+
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Gagal mengubah status layanan."
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDelete(
+    service: Service
+  ) {
+    if (!service.id) {
+      setError(
+        "ID layanan tidak valid."
+      );
+      return;
+    }
+
     const confirmed =
       window.confirm(
         `Hapus layanan "${service.name}"?`
@@ -214,6 +304,7 @@ export default function AdminServices() {
     }
 
     try {
+      setBusyId(service.id);
       setError("");
 
       await deleteService(
@@ -234,27 +325,8 @@ export default function AdminServices() {
           ? err.message
           : "Gagal menghapus layanan."
       );
-    }
-  }
-
-  async function toggle(
-    service: Service
-  ) {
-    try {
-      setError("");
-
-      await toggleService(
-        service.id,
-        !service.active
-      );
-
-      await load();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Gagal mengubah status layanan."
-      );
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -273,19 +345,15 @@ export default function AdminServices() {
           <h1>Layanan</h1>
 
           <p className="muted">
-            Kelola layanan, durasi,
-            harga, foto, dan status
-            layanan.
+            Kelola layanan per cabang,
+            harga, durasi, foto, dan
+            status layanan.
           </p>
         </div>
       </div>
 
       {error && (
-        <div className="panel">
-          <p className="error">
-            {error}
-          </p>
-        </div>
+        <ErrorBox message={error} />
       )}
 
       <div className="panel">
@@ -293,8 +361,8 @@ export default function AdminServices() {
           <div>
             <div className="eyebrow">
               {editingId
-                ? "EDIT LAYANAN"
-                : "LAYANAN BARU"}
+                ? "EDIT SERVICE"
+                : "NEW SERVICE"}
             </div>
 
             <h2>
@@ -303,240 +371,378 @@ export default function AdminServices() {
                 : "Tambah Layanan"}
             </h2>
           </div>
+
+          {editingId && (
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={
+                resetForm
+              }
+            >
+              <X size={16} />
+              Batal
+            </button>
+          )}
         </div>
 
         <div className="form-grid">
           <label>
-            <span>
-              Nama Layanan
-            </span>
-
+            Nama Layanan
             <input
-              placeholder="Contoh: Haircut"
-              value={name}
+              placeholder="Contoh: Haircut Premium"
+              value={
+                form.name
+              }
               onChange={(e) =>
-                setName(
-                  e.target.value
+                setForm(
+                  (current) => ({
+                    ...current,
+                    name: e.target
+                      .value,
+                  })
                 )
               }
             />
           </label>
 
           <label>
-            <span>
-              Durasi
-            </span>
+            Cabang
+            <select
+              value={
+                form.branchId
+              }
+              onChange={(e) =>
+                setForm(
+                  (current) => ({
+                    ...current,
+                    branchId:
+                      e.target
+                        .value,
+                  })
+                )
+              }
+            >
+              <option value="">
+                Pilih cabang
+              </option>
 
+              {branches.map(
+                (branch) => (
+                  <option
+                    key={
+                      branch.id
+                    }
+                    value={
+                      branch.id
+                    }
+                  >
+                    {branch.name}
+                  </option>
+                )
+              )}
+            </select>
+          </label>
+
+          <label>
+            Kategori
+            <input
+              placeholder="Contoh: Haircut"
+              value={
+                form.category
+              }
+              onChange={(e) =>
+                setForm(
+                  (current) => ({
+                    ...current,
+                    category:
+                      e.target
+                        .value,
+                  })
+                )
+              }
+            />
+          </label>
+
+          <label>
+            Durasi (menit)
             <input
               type="number"
               min="1"
-              placeholder="Menit"
-              value={duration}
+              value={
+                form.durationMinutes
+              }
               onChange={(e) =>
-                setDuration(
-                  Number(
-                    e.target.value
-                  )
+                setForm(
+                  (current) => ({
+                    ...current,
+                    durationMinutes:
+                      Number(
+                        e.target
+                          .value
+                      ),
+                  })
                 )
               }
             />
-
-            <small className="muted">
-              Lama pengerjaan layanan
-              dalam menit.
-            </small>
           </label>
 
           <label>
-            <span>
-              Harga
-            </span>
-
+            Harga (Rupiah)
             <input
               type="number"
               min="0"
-              placeholder="Harga"
-              value={price}
+              value={
+                form.price
+              }
               onChange={(e) =>
-                setPrice(
-                  Number(
-                    e.target.value
-                  )
+                setForm(
+                  (current) => ({
+                    ...current,
+                    price:
+                      Number(
+                        e.target
+                          .value
+                      ),
+                  })
                 )
               }
             />
-
-            <small className="muted">
-              Harga layanan dalam Rupiah.
-            </small>
           </label>
 
           <label>
-            <span>
-              Deskripsi
-            </span>
-
+            Deskripsi
             <input
-              placeholder="Contoh: Potong rambut pria"
-              value={desc}
+              placeholder="Penjelasan singkat layanan"
+              value={
+                form.description
+              }
               onChange={(e) =>
-                setDesc(
-                  e.target.value
+                setForm(
+                  (current) => ({
+                    ...current,
+                    description:
+                      e.target
+                        .value,
+                  })
                 )
               }
             />
-
-            <small className="muted">
-              Keterangan singkat yang
-              akan membantu pelanggan
-              memahami layanan.
-            </small>
           </label>
         </div>
 
         <ImageUploader
-          value={imageUrl}
-          onChange={setImageUrl}
+          value={
+            form.imageUrl
+          }
+          onChange={(value) =>
+            setForm(
+              (current) => ({
+                ...current,
+                imageUrl:
+                  value,
+              })
+            )
+          }
           folder={`barber-online/${business.id}/services`}
-          label="Foto Layanan"
-          hint="Opsional. Foto akan digunakan pada katalog."
+          label="Foto layanan"
+          hint="Opsional. Foto akan tampil pada katalog publik."
         />
 
         <div
           style={{
+            marginTop: 16,
             display: "flex",
             gap: 8,
-            marginTop: 16,
+            flexWrap: "wrap",
           }}
         >
           <button
+            type="button"
             className="btn primary"
-            disabled={
-              saving ||
-              !name.trim()
+            disabled={saving}
+            onClick={
+              handleSubmit
             }
-            onClick={submit}
           >
+            {editingId ? (
+              <Save size={16} />
+            ) : (
+              <Plus size={16} />
+            )}
+
             {saving
               ? "Menyimpan..."
               : editingId
-              ? "Simpan Perubahan"
-              : "Tambah Layanan"}
+                ? "Simpan Perubahan"
+                : "Tambah Layanan"}
           </button>
 
           {editingId && (
             <button
+              type="button"
               className="btn secondary"
-              disabled={saving}
-              onClick={resetForm}
+              onClick={
+                resetForm
+              }
             >
-              Batal Edit
+              <X size={16} />
+              Batal
             </button>
           )}
         </div>
       </div>
 
-      <div className="cards">
+      <div
+        style={{
+          marginTop: 24,
+        }}
+      >
         {items.length === 0 ? (
-          <div className="panel">
-            <p className="muted">
-              Belum ada layanan.
-            </p>
-          </div>
+          <Empty>
+            Belum ada layanan.
+          </Empty>
         ) : (
-          items.map(
-            (service) => (
-              <div
-                className="mini-card"
-                key={service.id}
-              >
-                {service.imageUrl ? (
-                  <img
-                    className="thumb"
-                    src={
-                      service.imageUrl
+          <div className="cards">
+            {items.map(
+              (service) => {
+                const branch =
+                  branches.find(
+                    (item) =>
+                      item.id ===
+                      service.branchId
+                  );
+
+                return (
+                  <div
+                    className="mini-card"
+                    key={
+                      service.id
                     }
-                    alt={
-                      service.name
-                    }
-                  />
-                ) : (
-                  <div className="avatar">
-                    S
-                  </div>
-                )}
-
-                <div className="grow">
-                  <b>
-                    {service.name}
-                  </b>
-
-                  <p>
-                    {service.description ||
-                      "Tidak ada deskripsi"}
-                  </p>
-
-                  <span>
-                    {
-                      service.durationMinutes
-                    }{" "}
-                    menit •{" "}
-                    {formatIDR(
-                      service.price
+                  >
+                    {service.imageUrl ? (
+                      <img
+                        className="thumb"
+                        src={
+                          service.imageUrl
+                        }
+                        alt={
+                          service.name
+                        }
+                      />
+                    ) : (
+                      <div className="avatar">
+                        S
+                      </div>
                     )}
-                  </span>
-                </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap:
-                      "wrap",
-                  }}
-                >
-                  <button
-                    className="btn secondary"
-                    onClick={() =>
-                      startEdit(
-                        service
-                      )
-                    }
-                  >
-                    Edit
-                  </button>
+                    <div className="grow">
+                      <b>
+                        {service.name}
+                      </b>
 
-                  <button
-                    className={`btn ${
-                      service.active
-                        ? "danger"
-                        : "secondary"
-                    }`}
-                    onClick={() =>
-                      toggle(
-                        service
-                      )
-                    }
-                  >
-                    {service.active
-                      ? "Nonaktifkan"
-                      : "Aktifkan"}
-                  </button>
+                      <p>
+                        {service.description ||
+                          "Tidak ada deskripsi."}
+                      </p>
 
-                  <button
-                    className="btn danger"
-                    onClick={() =>
-                      remove(
-                        service
-                      )
-                    }
-                  >
-                    Hapus
-                  </button>
-                </div>
-              </div>
-            )
-          )
+                      <span>
+                        {branch?.name ||
+                          "Cabang belum ditentukan"}
+                        {" • "}
+                        {service.durationMinutes}
+                        {" menit • "}
+                        {formatIDR(
+                          service.price
+                        )}
+                      </span>
+
+                      <small
+                        style={{
+                          display:
+                            "block",
+                          marginTop: 4,
+                        }}
+                      >
+                        Status:{" "}
+                        {service.active
+                          ? "Aktif"
+                          : "Nonaktif"}
+                      </small>
+                    </div>
+
+                    <div
+                      style={{
+                        display:
+                          "flex",
+                        gap: 8,
+                        flexWrap:
+                          "wrap",
+                        justifyContent:
+                          "flex-end",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        onClick={() =>
+                          startEdit(
+                            service
+                          )
+                        }
+                      >
+                        <Edit3
+                          size={15}
+                        />
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`btn ${
+                          service.active
+                            ? "danger"
+                            : "secondary"
+                        }`}
+                        disabled={
+                          busyId ===
+                          service.id
+                        }
+                        onClick={() =>
+                          handleToggle(
+                            service
+                          )
+                        }
+                      >
+                        {service.active
+                          ? "Nonaktifkan"
+                          : "Aktifkan"}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn danger"
+                        disabled={
+                          busyId ===
+                          service.id
+                        }
+                        onClick={() =>
+                          handleDelete(
+                            service
+                          )
+                        }
+                      >
+                        <Trash2
+                          size={15}
+                        />
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+            )}
+          </div>
         )}
       </div>
     </div>

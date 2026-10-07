@@ -18,7 +18,9 @@ import {
 } from "../components";
 
 import { useAuth } from "../context/AuthContext";
-import { useBusiness } from "../context/BusinessContext";
+import {
+  useBusiness,
+} from "../context/BusinessContext";
 
 import {
   getAllBookings,
@@ -70,74 +72,98 @@ export default function Transactions({
 }: {
   barberOnly?: boolean;
 }) {
-  const { profile } =
-    useAuth();
+  const {
+    profile,
+  } = useAuth();
 
   const {
-    branches,
     selectedBranchId,
-    setSelectedBranchId,
   } = useBusiness();
 
-  const [items, setItems] =
-    useState<Transaction[]>(
-      []
-    );
+  const [
+    items,
+    setItems,
+  ] = useState<Transaction[]>(
+    []
+  );
 
-  const [bookings, setBookings] =
-    useState<Booking[]>([]);
+  const [
+    bookings,
+    setBookings,
+  ] = useState<Booking[]>(
+    []
+  );
 
-  const [services, setServices] =
-    useState<Service[]>([]);
+  const [
+    services,
+    setServices,
+  ] = useState<Service[]>(
+    []
+  );
 
-  const [products, setProducts] =
-    useState<Product[]>([]);
+  const [
+    products,
+    setProducts,
+  ] = useState<Product[]>(
+    []
+  );
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [error, setError] =
-    useState("");
+  const [
+    error,
+    setError,
+  ] = useState("");
 
-  const [bookingId, setBookingId] =
-    useState("");
+  const [
+    bookingId,
+    setBookingId,
+  ] = useState("");
 
-  const [method, setMethod] =
-    useState<
-      NonNullable<
-        Transaction["method"]
-      >
-    >("CASH");
+  const [
+    method,
+    setMethod,
+  ] = useState<
+    NonNullable<Transaction["method"]>
+  >("CASH");
 
-  const [discount, setDiscount] =
-    useState(0);
+  const [
+    discount,
+    setDiscount,
+  ] = useState(0);
 
-  const [lines, setLines] =
-    useState<TransactionItem[]>(
-      []
-    );
+  const [
+    lines,
+    setLines,
+  ] = useState<TransactionItem[]>(
+    []
+  );
 
-  const [serviceId, setServiceId] =
-    useState("");
+  const [
+    serviceId,
+    setServiceId,
+  ] = useState("");
 
-  const [productId, setProductId] =
-    useState("");
+  const [
+    productId,
+    setProductId,
+  ] = useState("");
 
-  const [qty, setQty] =
-    useState(1);
+  const [
+    qty,
+    setQty,
+  ] = useState(1);
 
-  const [busy, setBusy] =
-    useState(false);
-
-  const activeBranchId =
-    selectedBranchId || "";
+  const [
+    busy,
+    setBusy,
+  ] = useState(false);
 
   async function load() {
-    if (!activeBranchId) {
-      setItems([]);
-      setBookings([]);
-      setServices([]);
-      setProducts([]);
+    if (!selectedBranchId) {
       setLoading(false);
       return;
     }
@@ -148,51 +174,48 @@ export default function Transactions({
       setError("");
 
       const [
-        transactions,
-        allBookings,
-        allServices,
-        allProducts,
+        transactionData,
+        bookingData,
+        serviceData,
+        productData,
       ] = await Promise.all([
         getTransactions(
-          activeBranchId,
+          selectedBranchId,
           barberOnly
             ? profile?.barberId
             : undefined
         ),
-
         getAllBookings(),
-
         getActiveServices(),
-
         getProducts(
-          activeBranchId,
+          selectedBranchId,
           true
         ),
       ]);
 
       setItems(
-        transactions
+        transactionData
       );
 
       setBookings(
-        allBookings.filter(
+        bookingData.filter(
           (booking) =>
             booking.branchId ===
-            activeBranchId
+            selectedBranchId
         )
       );
 
       setServices(
-        allServices.filter(
+        serviceData.filter(
           (service) =>
             !service.branchId ||
             service.branchId ===
-              activeBranchId
+              selectedBranchId
         )
       );
 
       setProducts(
-        allProducts
+        productData
       );
     } catch (err) {
       setError(
@@ -208,7 +231,7 @@ export default function Transactions({
   useEffect(() => {
     load();
   }, [
-    activeBranchId,
+    selectedBranchId,
     profile?.barberId,
     barberOnly,
   ]);
@@ -216,52 +239,30 @@ export default function Transactions({
   const selectedBooking =
     bookings.find(
       (booking) =>
-        booking.id ===
-        bookingId
+        booking.id === bookingId
     );
 
-  const subtotal =
-    useMemo(
-      () =>
-        lines.reduce(
-          (total, item) =>
-            total +
-            item.subtotal,
-          0
-        ),
-      [lines]
-    );
+  const subtotal = useMemo(
+    () =>
+      lines.reduce(
+        (total, item) =>
+          total + item.subtotal,
+        0
+      ),
+    [lines]
+  );
 
-  const total =
-    Math.max(
-      0,
-      subtotal -
-        Number(
-          discount || 0
-        )
-    );
-
-  function handleBranchChange(
-    branchId: string
-  ) {
-    setSelectedBranchId(
-      branchId
-    );
-
-    setBookingId("");
-    setLines([]);
-    setServiceId("");
-    setProductId("");
-    setDiscount(0);
-    setError("");
-  }
+  const total = Math.max(
+    0,
+    subtotal -
+      Number(discount || 0)
+  );
 
   function addService() {
     const service =
       services.find(
         (item) =>
-          item.id ===
-          serviceId
+          item.id === serviceId
       );
 
     if (!service) {
@@ -273,10 +274,8 @@ export default function Transactions({
         ...current,
         {
           type: "SERVICE",
-          itemId:
-            service.id,
-          name:
-            service.name,
+          itemId: service.id,
+          name: service.name,
           quantity: 1,
           unitPrice:
             service.price,
@@ -293,8 +292,7 @@ export default function Transactions({
     const product =
       products.find(
         (item) =>
-          item.id ===
-          productId
+          item.id === productId
       );
 
     if (!product) {
@@ -305,8 +303,14 @@ export default function Transactions({
       Number(qty);
 
     if (
+      !Number.isFinite(
+        quantity
+      ) ||
       quantity < 1
     ) {
+      setError(
+        "Jumlah produk minimal 1."
+      );
       return;
     }
 
@@ -315,7 +319,7 @@ export default function Transactions({
       product.stock
     ) {
       setError(
-        `Stok ${product.name} hanya tersedia ${product.stock}.`
+        `Stok ${product.name} hanya ${product.stock}.`
       );
       return;
     }
@@ -325,10 +329,8 @@ export default function Transactions({
         ...current,
         {
           type: "PRODUCT",
-          itemId:
-            product.id,
-          name:
-            product.name,
+          itemId: product.id,
+          name: product.name,
           quantity,
           unitPrice:
             product.sellingPrice,
@@ -341,6 +343,7 @@ export default function Transactions({
 
     setProductId("");
     setQty(1);
+    setError("");
   }
 
   function removeLine(
@@ -356,34 +359,49 @@ export default function Transactions({
   }
 
   async function create() {
-    if (
-      !activeBranchId ||
-      !profile ||
-      !lines.length
-    ) {
+    if (!selectedBranchId) {
+      setError(
+        "Pilih cabang terlebih dahulu."
+      );
+      return;
+    }
+
+    if (!profile) {
+      setError(
+        "Profil pengguna tidak ditemukan."
+      );
+      return;
+    }
+
+    if (!lines.length) {
+      setError(
+        "Tambahkan minimal satu item transaksi."
+      );
       return;
     }
 
     setBusy(true);
-    setError("");
 
     try {
-      let barber =
-        profile.barberId
-          ? {
-              id:
-                profile.barberId,
-              name:
-                profile.name,
-            }
-          : undefined;
+      setError("");
 
-      if (
-        selectedBooking?.barberId
-      ) {
+      let barber:
+        | {
+            id: string;
+            name: string;
+          }
+        | undefined;
+
+      if (profile.barberId) {
         barber = {
-          id:
-            selectedBooking.barberId,
+          id: profile.barberId,
+          name: profile.name,
+        };
+      }
+
+      if (selectedBooking?.barberId) {
+        barber = {
+          id: selectedBooking.barberId,
           name:
             selectedBooking.barberName ||
             "",
@@ -392,7 +410,7 @@ export default function Transactions({
 
       await createTransaction({
         branchId:
-          activeBranchId,
+          selectedBranchId,
 
         booking:
           selectedBooking,
@@ -442,6 +460,7 @@ export default function Transactions({
     id: string
   ) {
     setBookingId(id);
+    setError("");
 
     if (!id) {
       return;
@@ -471,58 +490,11 @@ export default function Transactions({
     return <Loading />;
   }
 
-  if (!activeBranchId) {
+  if (!selectedBranchId) {
     return (
-      <div>
-        <div className="section-head">
-          <div>
-            <div className="eyebrow">
-              TRANSACTIONS
-            </div>
-
-            <h1>
-              Transaksi
-            </h1>
-          </div>
-        </div>
-
-        <div className="panel">
-          <label>
-            <span>
-              Pilih Cabang
-            </span>
-
-            <select
-              value=""
-              onChange={(e) =>
-                handleBranchChange(
-                  e.target.value
-                )
-              }
-            >
-              <option value="">
-                Pilih cabang
-              </option>
-
-              {branches.map(
-                (branch) => (
-                  <option
-                    key={branch.id}
-                    value={branch.id}
-                  >
-                    {branch.name}
-                  </option>
-                )
-              )}
-            </select>
-
-            <small className="muted">
-              Pilih cabang tempat
-              transaksi akan dibuat.
-            </small>
-          </label>
-        </div>
-      </div>
+      <Empty>
+        Pilih cabang terlebih dahulu.
+      </Empty>
     );
   }
 
@@ -534,72 +506,30 @@ export default function Transactions({
             TRANSACTIONS
           </div>
 
-          <h1>
-            Transaksi
-          </h1>
+          <h1>Transaksi</h1>
 
           <p className="muted">
             Service + product dalam
-            satu transaksi.
-            Pembayaran Cash, QRIS,
-            Transfer, atau Other.
+            satu transaksi. Walk-in
+            juga didukung.
           </p>
         </div>
 
         <button
+          type="button"
           className="btn secondary"
           onClick={load}
         >
-          <RefreshCw size={16} />
+          <RefreshCw
+            size={16}
+          />
           Refresh
         </button>
       </div>
 
       {error && (
-        <ErrorBox
-          message={error}
-        />
+        <ErrorBox message={error} />
       )}
-
-      <div className="panel">
-        <label>
-          <span>
-            Cabang Transaksi
-          </span>
-
-          <select
-            value={
-              activeBranchId
-            }
-            onChange={(e) =>
-              handleBranchChange(
-                e.target.value
-              )
-            }
-            disabled={
-              barberOnly
-            }
-          >
-            {branches.map(
-              (branch) => (
-                <option
-                  key={branch.id}
-                  value={branch.id}
-                >
-                  {branch.name}
-                </option>
-              )
-            )}
-          </select>
-
-          <small className="muted">
-            Semua booking, produk,
-            layanan, dan transaksi
-            pada halaman ini mengikuti
-            cabang yang dipilih.
-          </small>
-        </label>
-      </div>
 
       <div className="owner-grid">
         <section className="panel">
@@ -616,18 +546,10 @@ export default function Transactions({
           </div>
 
           <label>
-            <span>
-              Booking
-              <small>
-                {" "}
-                (opsional)
-              </small>
-            </span>
+            Booking
 
             <select
-              value={
-                bookingId
-              }
+              value={bookingId}
               onChange={(e) =>
                 chooseBooking(
                   e.target.value
@@ -658,9 +580,7 @@ export default function Transactions({
                         booking.id
                       }
                     >
-                      {
-                        booking.date
-                      }{" "}
+                      {booking.date}{" "}
                       {
                         booking.startTime
                       }{" "}
@@ -674,21 +594,11 @@ export default function Transactions({
                   )
                 )}
             </select>
-
-            <small className="muted">
-              Pilih booking jika
-              transaksi berasal dari
-              booking online. Untuk
-              pelanggan datang langsung,
-              biarkan "Walk-in".
-            </small>
           </label>
 
           <div className="form-grid">
             <select
-              value={
-                serviceId
-              }
+              value={serviceId}
               onChange={(e) =>
                 setServiceId(
                   e.target.value
@@ -719,12 +629,10 @@ export default function Transactions({
             </select>
 
             <button
+              type="button"
               className="btn secondary"
               onClick={
                 addService
-              }
-              disabled={
-                !serviceId
               }
             >
               <Plus size={15} />
@@ -732,9 +640,7 @@ export default function Transactions({
             </button>
 
             <select
-              value={
-                productId
-              }
+              value={productId}
               onChange={(e) =>
                 setProductId(
                   e.target.value
@@ -757,9 +663,7 @@ export default function Transactions({
                   >
                     {product.name} •
                     stok{" "}
-                    {
-                      product.stock
-                    } •{" "}
+                    {product.stock} •{" "}
                     {money(
                       product.sellingPrice
                     )}
@@ -782,12 +686,10 @@ export default function Transactions({
             />
 
             <button
+              type="button"
               className="btn secondary"
               onClick={
                 addProduct
-              }
-              disabled={
-                !productId
               }
             >
               <Plus size={15} />
@@ -797,7 +699,8 @@ export default function Transactions({
 
           {lines.length === 0 ? (
             <Empty>
-              Belum ada item transaksi.
+              Belum ada item
+              transaksi.
             </Empty>
           ) : (
             <div className="table">
@@ -809,17 +712,12 @@ export default function Transactions({
                   >
                     <div>
                       <b>
-                        {
-                          item.name
-                        }
+                        {item.name}
                       </b>
 
                       <small>
                         {item.type} •{" "}
-                        {
-                          item.quantity
-                        }{" "}
-                        ×{" "}
+                        {item.quantity} ×{" "}
                         {money(
                           item.unitPrice
                         )}
@@ -833,6 +731,7 @@ export default function Transactions({
                     </strong>
 
                     <button
+                      type="button"
                       className="btn danger small"
                       onClick={() =>
                         removeLine(
@@ -849,62 +748,42 @@ export default function Transactions({
           )}
 
           <div className="form-grid">
-            <label>
-              <span>
-                Diskon
-              </span>
-
-              <input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={
-                  discount
-                }
-                onChange={(e) =>
-                  setDiscount(
-                    Number(
-                      e.target.value
-                    )
+            <input
+              type="number"
+              min="0"
+              placeholder="Diskon"
+              value={discount}
+              onChange={(e) =>
+                setDiscount(
+                  Number(
+                    e.target.value
                   )
-                }
-              />
+                )
+              }
+            />
 
-              <small className="muted">
-                Masukkan nominal diskon
-                dalam Rupiah.
-              </small>
-            </label>
-
-            <label>
-              <span>
-                Metode Pembayaran
-              </span>
-
-              <select
-                value={
-                  method
-                }
-                onChange={(e) =>
-                  setMethod(
-                    e.target
-                      .value as NonNullable<
-                      Transaction["method"]
-                    >
-                  )
-                }
-              >
-                {methods.map(
-                  (item) => (
-                    <option
-                      key={item}
-                    >
-                      {item}
-                    </option>
-                  )
-                )}
-              </select>
-            </label>
+            <select
+              value={method}
+              onChange={(e) =>
+                setMethod(
+                  e.target
+                    .value as NonNullable<
+                    Transaction["method"]
+                  >
+                )
+              }
+            >
+              {methods.map(
+                (item) => (
+                  <option
+                    key={item}
+                    value={item}
+                  >
+                    {item}
+                  </option>
+                )
+              )}
+            </select>
           </div>
 
           <div className="checkout-total">
@@ -934,14 +813,19 @@ export default function Transactions({
           </div>
 
           <button
+            type="button"
             className="btn primary full"
             disabled={
               busy ||
               !lines.length
             }
-            onClick={create}
+            onClick={
+              create
+            }
           >
-            <Receipt size={16} />
+            <Receipt
+              size={16}
+            />
 
             {busy
               ? "Menyimpan..."
@@ -962,7 +846,8 @@ export default function Transactions({
             </div>
           </div>
 
-          {items.length === 0 ? (
+          {items.length ===
+          0 ? (
             <Empty>
               Belum ada transaksi.
             </Empty>
@@ -1025,8 +910,7 @@ function TransactionCard({
               (item) =>
                 `${item.name} ×${item.quantity}`
             )
-            .join(", ") ||
-            "-"}
+            .join(", ") || "-"}
         </span>
 
         <p>
@@ -1047,8 +931,11 @@ function TransactionCard({
       {transaction.status !==
         "PAID" && (
         <button
+          type="button"
           className="btn small primary"
-          onClick={onPaid}
+          onClick={
+            onPaid
+          }
         >
           Tandai Lunas
         </button>
